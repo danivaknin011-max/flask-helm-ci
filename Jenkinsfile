@@ -1,61 +1,44 @@
 pipeline {
-    agent any
+    // שינוי קריטי: שימוש ב-agent שהגדרנו ב-Helm במקום ב-master
+    
+    agent { label 'jenkins-agent' }
 
     environment {
-        // וודא שב-Jenkins מוגדר Credentials מסוג Username/Password עם ה-ID הזה
-        DOCKERHUB_CREDENTIALS = 'dockerhub' 
-        IMAGE_NAME = '213daniel/flask-app' // שם המשתמש שלך ב-DockerHub
-        IMAGE_TAG = "${env.BUILD_NUMBER}"
+        // וודא שזה השם המדויק שלך בדוקר-האב
+        IMAGE_NAME = "213daniel/flask-app"
+        IMAGE_TAG  = "latest"
     }
 
     stages {
         stage('Checkout') {
             steps {
-                // שים לב: שיניתי ל-GitLab ול-Credentials הנכונים
-                git branch: 'main', 
-                    credentialsId: 'git', 
-                    url: 'git@gitlab.com:sela-1119/students/danivaknin011/helm-charts/flask-jenkins-helm-1.git'
+                checkout scm
             }
         }
 
         stage('Build Docker Image') {
             steps {
-                script {
-                    // בניית האימג'
-                    docker.build("${IMAGE_NAME}:${IMAGE_TAG}")
+                // ה-Agent הזה כבר מכיל דוקר ומחובר לסוקט
+                sh 'docker build -t $IMAGE_NAME:$IMAGE_TAG .'
+            }
+        }
+
+        stage('Login to DockerHub') {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: 'dockerhub', // זה ה-ID שנצור תיכף בממשק
+                    usernameVariable: 'DOCKER_USER',
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
+                    sh 'echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin'
                 }
             }
         }
 
         stage('Push Docker Image') {
             steps {
-                script {
-                    docker.withRegistry('', DOCKERHUB_CREDENTIALS) {
-                        docker.image("${IMAGE_NAME}:${IMAGE_TAG}").push()
-                        docker.image("${IMAGE_NAME}:${IMAGE_TAG}").push('latest')
-                    }
-                }
+                sh 'docker push $IMAGE_NAME:$IMAGE_TAG'
             }
-        }
-
-        stage('Deploy with Helm') {
-            steps {
-                // וודא שהנתיב ל-helm-chart נכון ביחס לשורש הפרויקט
-                sh """
-                    helm upgrade --install flask-app ./helm-chart \
-                        --set image.repository=${IMAGE_NAME} \
-                        --set image.tag=${IMAGE_TAG}
-                """
-            }
-        }
-    }
-
-    post {
-        success {
-            echo 'Pipeline completed successfully 💚'
-        }
-        failure {
-            echo 'Pipeline failed ❌'
         }
     }
 }
