@@ -1,6 +1,6 @@
 pipeline {
     // שינוי קריטי: שימוש ב-agent שהגדרנו ב-Helm במקום ב-master
-    agent { label 'jenkins-agent' } 
+    agent any
 
     environment {
         // וודא שזה השם המדויק שלך בדוקר-האב
