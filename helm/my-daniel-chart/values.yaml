@@ -1,8 +1,8 @@
 replicaCount: 2
 
 image:
-  repository: 213daniel/my-python-app
-  tag: "v9"
+  repository: ""
+  tag: latest
   pullPolicy: IfNotPresent
 
 service:

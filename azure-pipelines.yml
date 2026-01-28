@@ -1,0 +1,57 @@
+trigger:
+- main
+
+variables:
+- group: gitlab-secrets
+- group: docker-secrets
+- name: imageTag
+  value: $(Build.BuildId)
+
+pool:
+  vmImage: ubuntu-latest
+
+steps:
+- checkout: none
+
+# ---------- Clone GitLab Repo ----------
+- script: |
+    git clone https://oauth2:$(GITLAB_TOKEN)@gitlab.com/sela-1119/students/danivaknin011/helm-charts/flask-jenkins-helm-1.git
+    cd flask-jenkins-helm-1
+    echo "Repo cloned successfully"
+  displayName: Clone from GitLab
+
+# ---------- Docker ----------
+- task: DockerInstaller@0
+
+- script: |
+    echo "$(DOCKER_PASSWORD)" | docker login -u "$(DOCKER_USERNAME)" --password-stdin
+  displayName: Docker Login
+
+- script: |
+    cd flask-jenkins-helm-1/app
+    docker build -t $(DOCKER_REPO):$(imageTag) .
+  displayName: Docker Build
+
+- script: |
+    docker push $(DOCKER_REPO):$(imageTag)
+  displayName: Docker Push
+
+# ---------- Helm ----------
+- task: HelmInstaller@1
+  inputs:
+    helmVersionToInstall: latest
+
+- task: Kubernetes@1
+  inputs:
+    connectionType: Kubernetes Service Connection
+    kubernetesServiceEndpoint: k8s-conn
+    command: login
+
+- script: |
+    cd flask-jenkins-helm-1
+    helm upgrade --install flask-jenkins \
+      ./helm/my-daniel-chart \
+      --set image.repository=$(DOCKER_REPO) \
+      --set image.tag=$(imageTag)
+  displayName: Helm Upgrade
+
