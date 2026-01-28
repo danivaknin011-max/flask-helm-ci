@@ -1,0 +1,29 @@
+replicaCount: 2
+
+image:
+  repository: 213daniel/my-python-app
+  tag: "v9"
+  pullPolicy: IfNotPresent
+
+service:
+  type: NodePort
+  port: 80
+  targetPort: 5000
+  NodePort: 30007
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPU: 50
+
+env:
+  secretName: db-creds

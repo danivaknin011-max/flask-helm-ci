@@ -1,0 +1,5 @@
+apiVersion: v2
+name: my-daniel-chart
+description: A minimal Helm chart for Python App
+version: 0.1.0
+appVersion: "1.0.0"

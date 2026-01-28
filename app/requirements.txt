@@ -1,0 +1,4 @@
+flask
+pymysql
+cryptography
+prometheus_client

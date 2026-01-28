@@ -1,0 +1,7 @@
+jenkins-git
+jenkins-git.pub
+.env
+*.env
+__pycache__/
+*.pyc
+
