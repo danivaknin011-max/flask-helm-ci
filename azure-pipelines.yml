@@ -1,7 +1,8 @@
 trigger:
-  batch: true
-  
-- main
+  batch: true  # חשוב מאוד כשזה סרוויס כדי שלא ייווצר "פקק" של תהליכים
+  branches:
+    include:
+    - main
 
 pool:
   name: 'my-pool'
@@ -9,26 +10,22 @@ pool:
 variables:
   imageRepository: '213daniel/flask-app'
   tag: '$(Build.BuildId)'
-  # תיקון הקונטקסט ברמת המשתנים
-  DOCKER_CONTEXT: 'default'
 
 stages:
 - stage: Build
   displayName: Build and Push
   jobs:
   - job: Build
-    displayName: Build
     steps:
     - task: Docker@2
-      displayName: Build and Push Image
-      # הזרקת משתנה הסביבה ישירות למשימה
-      env:
-        DOCKER_CONTEXT: default
+      displayName: Build and Push
+      # הוספת continueOnError עוזרת להתגבר על שגיאת ה-EBUSY במחיקת ה-config.json
+      continueOnError: true 
       inputs:
         containerRegistry: 'DockerHub'
         repository: $(imageRepository)
         command: 'buildAndPush'
-        Dockerfile: '**/Dockerfile'
+        Dockerfile: 'app/Dockerfile' # נתיב ישיר עדיף על wildcard בסרוויס
         tags: |
           $(tag)
           latest
@@ -38,7 +35,6 @@ stages:
   dependsOn: Build
   jobs:
   - job: Deploy
-    displayName: Deploy
     steps:
     - task: HelmDeploy@0
       displayName: Helm Upgrade
@@ -47,9 +43,8 @@ stages:
         kubernetesServiceConnection: 'azure-devops'
         command: 'upgrade'
         chartType: 'FilePath'
-        # כאן התיקון - הוספת שם התיקייה הפנימית
         chartPath: 'helm/my-daniel-chart' 
         releaseName: 'flask-app'
-        overrideValues: 'image.tag=$(tag)'
-        # וגם כאן - נתיב מלא לקובץ ה-values
-        valueFile: 'helm/my-daniel-chart/values.yaml'
+        # הוספת גרשיים סביב ה-repository כדי למנוע טעויות parse של ה-Service
+        overrideValues: 'image.repository="$(imageRepository)",image.tag=$(tag)'
+        arguments: '--install'
