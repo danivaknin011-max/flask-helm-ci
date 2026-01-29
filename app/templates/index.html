@@ -1,198 +1,115 @@
 <!DOCTYPE html>
-
 <html lang="he" dir="rtl">
-
 <head>
-
     <meta charset="UTF-8">
-
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-    <title>Flask Bank</title>
-
+    <title>Flask Bank | ניהול חשבון</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-
     <style>
-
-        body { background-color: #f8f9fa; }
-
-        .card { box-shadow: 0 4px 8px rgba(0,0,0,0.1); border: none; }
-
-        .balance-display { font-size: 2.5rem; font-weight: bold; color: #28a745; }
-
-        .btn-custom { width: 100%; margin-top: 10px; }
-
+        :root { --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        body { background: #f0f2f5; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; height: 100vh; display: flex; align-items: center; }
+        .card { border-radius: 20px; border: none; overflow: hidden; }
+        .card-header { background: var(--primary-gradient); color: white; padding: 2rem; border: none; }
+        .balance-display { font-size: 3.5rem; font-weight: 800; color: #2d3436; margin: 1rem 0; transition: transform 0.3s ease; }
+        .balance-display:hover { transform: scale(1.05); }
+        .btn-action { padding: 12px; border-radius: 12px; font-weight: bold; transition: all 0.2s; }
+        .btn-action:active { transform: translateY(2px); }
+        .input-group-text { background: #fff; border-left: none; }
+        #amount { border-right: none; font-size: 1.2rem; text-align: center; }
+        .loader { display: none; width: 1rem; height: 1rem; margin-right: 5px; }
     </style>
-
 </head>
-
 <body>
-
-    <div class="container mt-5">
-
+    <div class="container">
         <div class="row justify-content-center">
-
-            <div class="col-md-6">
-
-                <div class="card p-4 text-center">
-
-                    <h2 class="mb-4">🏦 בנק Flask</h2>
-
-                    
-
-                    <div class="mb-4">
-
-                        <h5>יתרה נוכחית:</h5>
-
+            <div class="col-md-5">
+                <div class="card shadow-lg">
+                    <div class="card-header text-center">
+                        <h2 class="m-0">🏦 בנק דיגיטלי</h2>
+                        <small class="opacity-75">מנוהל ע"י Flask & Kubernetes</small>
+                    </div>
+                    <div class="card-body p-5 text-center">
+                        <h6 class="text-uppercase text-muted fw-bold">יתרה נוכחית</h6>
                         <div id="balance" class="balance-display">₪0</div>
-
-                    </div>
-
-
-
-                    <div class="row">
-
-                        <div class="col-6">
-
-                            <input type="number" id="amount" class="form-control" placeholder="סכום">
-
+                        
+                        <div class="mt-4">
+                            <div class="input-group mb-3">
+                                <span class="input-group-text">₪</span>
+                                <input type="number" id="amount" class="form-control" placeholder="0.00">
+                            </div>
+                            
+                            <div class="d-grid gap-2">
+                                <button id="btn-deposit" onclick="performAction('deposit')" class="btn btn-success btn-action shadow-sm">
+                                    <span class="spinner-border spinner-border-sm loader" id="loader-deposit"></span>
+                                    הפקדה מהירה (+)
+                                </button>
+                                <button id="btn-withdraw" onclick="performAction('withdraw')" class="btn btn-outline-danger btn-action shadow-sm">
+                                    <span class="spinner-border spinner-border-sm loader" id="loader-withdraw"></span>
+                                    משיכת מזומן (-)
+                                </button>
+                            </div>
                         </div>
 
-                        <div class="col-6">
-
-                            <button onclick="performAction('deposit')" class="btn btn-primary w-100">הפקדה (+)</button>
-
-                            <button onclick="performAction('withdraw')" class="btn btn-danger w-100 mt-2">משיכה (-)</button>
-
-                        </div>
-
+                        <div id="message" class="mt-4 alert d-none fade show" role="alert"></div>
                     </div>
-
-
-
-                    <div id="message" class="mt-3 alert" style="display:none;"></div>
-
                 </div>
-
             </div>
-
         </div>
-
     </div>
 
-
-
     <script>
-
-        // פונקציה לעדכון היתרה בטעינה ואחרי פעולה
-
         async function updateBalance() {
-
             try {
-
                 const response = await fetch('/balance');
-
                 const data = await response.json();
-
-                document.getElementById('balance').innerText = '₪' + data.balance;
-
-            } catch (error) {
-
-                console.error('Error:', error);
-
-            }
-
+                document.getElementById('balance').innerText = '₪' + data.balance.toLocaleString();
+            } catch (error) { console.error('Error:', error); }
         }
-
-
-
-        // פונקציה לביצוע הפקדה או משיכה
 
         async function performAction(action) {
-
             const amountInput = document.getElementById('amount');
-
             const amount = parseFloat(amountInput.value);
-
-            const messageDiv = document.getElementById('message');
-
-
-
+            const loader = document.getElementById(`loader-${action}`);
+            
             if (!amount || amount <= 0) {
-
-                showMessage('נא להזין סכום חיובי', 'danger');
-
+                showMessage('נא להזין סכום תקין', 'danger');
                 return;
-
             }
 
-
-
+            // הפעלת אנימציית טעינה
+            loader.style.display = 'inline-block';
+            
             try {
-
                 const response = await fetch('/' + action, {
-
                     method: 'POST',
-
                     headers: { 'Content-Type': 'application/json' },
-
                     body: JSON.stringify({ amount: amount })
-
                 });
-
-
 
                 const data = await response.json();
 
-
-
                 if (response.ok) {
-
-                    showMessage(action === 'deposit' ? 'ההפקדה בוצעה!' : 'המשיכה בוצעה!', 'success');
-
+                    showMessage(action === 'deposit' ? 'הכסף הופקד בהצלחה!' : 'המשיכה בוצעה!', 'success');
                     updateBalance();
-
-                    amountInput.value = ''; // ניקוי השדה
-
+                    amountInput.value = '';
                 } else {
-
-                    showMessage(data.error || 'שגיאה', 'danger');
-
+                    showMessage(data.error || 'הפעולה נכשלה', 'warning');
                 }
-
             } catch (error) {
-
                 showMessage('שגיאה בתקשורת עם השרת', 'danger');
-
+            } finally {
+                loader.style.display = 'none';
             }
-
         }
-
-
 
         function showMessage(text, type) {
-
             const msgDiv = document.getElementById('message');
-
-            msgDiv.className = `mt-3 alert alert-${type}`;
-
             msgDiv.innerText = text;
-
-            msgDiv.style.display = 'block';
-
-            setTimeout(() => msgDiv.style.display = 'none', 3000);
-
+            msgDiv.className = `mt-4 alert alert-${type} d-block`;
+            setTimeout(() => msgDiv.className = 'd-none', 4000);
         }
 
-
-
-        // טעינת יתרה ראשונית
-
         updateBalance();
-
     </script>
-
 </body>
-
 </html>
-

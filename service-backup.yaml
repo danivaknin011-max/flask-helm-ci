@@ -1,0 +1,34 @@
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"v1","kind":"Service","metadata":{"annotations":{},"name":"flask-app-service","namespace":"default"},"spec":{"ports":[{"port":5005,"protocol":"TCP","targetPort":5005}],"selector":{"app":"flask-app"},"type":"LoadBalancer"}}
+  creationTimestamp: "2025-12-08T22:04:42Z"
+  name: flask-app-service
+  namespace: default
+  resourceVersion: "124235"
+  uid: b301ebf0-0f96-4787-b1e3-f65b40fb2531
+spec:
+  allocateLoadBalancerNodePorts: true
+  clusterIP: 10.102.99.159
+  clusterIPs:
+  - 10.102.99.159
+  externalTrafficPolicy: Cluster
+  internalTrafficPolicy: Cluster
+  ipFamilies:
+  - IPv4
+  ipFamilyPolicy: SingleStack
+  ports:
+  - nodePort: 31761
+    port: 5005
+    protocol: TCP
+    targetPort: 5005
+  selector:
+    app: flask-app
+  sessionAffinity: None
+  type: LoadBalancer
+status:
+  loadBalancer:
+    ingress:
+    - hostname: localhost
