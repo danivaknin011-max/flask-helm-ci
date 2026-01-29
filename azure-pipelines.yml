@@ -45,7 +45,9 @@ stages:
         kubernetesServiceConnection: 'azure-devops'
         command: 'upgrade'
         chartType: 'FilePath'
-        chartPath: 'helm' 
+        # כאן התיקון - הוספת שם התיקייה הפנימית
+        chartPath: 'helm/my-daniel-chart' 
         releaseName: 'flask-app'
         overrideValues: 'image.tag=$(tag)'
-        valueFile: 'helm/values.yaml'
+        # וגם כאן - נתיב מלא לקובץ ה-values
+        valueFile: 'helm/my-daniel-chart/values.yaml'
