@@ -1,8 +1,13 @@
 trigger:
-  batch: true  # חשוב מאוד כשזה סרוויס כדי שלא ייווצר "פקק" של תהליכים
+  batch: true          # מונע ריבוי ריצות במקביל (פותר "פקק" בתור)
   branches:
     include:
     - main
+  paths:
+    include:
+    - app/*
+    - helm/*
+    - azure-pipelines.yml
 
 pool:
   name: 'my-pool'
@@ -16,25 +21,30 @@ stages:
   displayName: Build and Push
   jobs:
   - job: Build
+    displayName: Build
     steps:
     - task: Docker@2
-      displayName: Build and Push
-      # הוספת continueOnError עוזרת להתגבר על שגיאת ה-EBUSY במחיקת ה-config.json
-      continueOnError: true 
+      displayName: Build and Push Image
+      # קריטי לסרוויס: מכריח שימוש ב-Context הדיפולטיבי ולא מחפש את desktop-linux
+      env:
+        DOCKER_CONTEXT: 'default'
+      # קריטי ל-Windows: מתעלם משגיאת EBUSY בסוף הריצה (מחיקת קבצים זמניים)
+      continueOnError: true
       inputs:
         containerRegistry: 'DockerHub'
         repository: $(imageRepository)
         command: 'buildAndPush'
-        Dockerfile: 'app/Dockerfile' # נתיב ישיר עדיף על wildcard בסרוויס
+        Dockerfile: 'app/Dockerfile'   # נתיב ספציפי עדיף כשרצים כ-Service
         tags: |
           $(tag)
           latest
 
 - stage: Deploy
   displayName: Deploy to K8s
-  dependsOn: Build
+  dependsOn: Build    # ירוץ רק אם ה-Build הצליח (או עבר עם שגיאה לא קריטית)
   jobs:
   - job: Deploy
+    displayName: Deploy
     steps:
     - task: HelmDeploy@0
       displayName: Helm Upgrade
@@ -45,6 +55,8 @@ stages:
         chartType: 'FilePath'
         chartPath: 'helm/my-daniel-chart' 
         releaseName: 'flask-app'
-        # הוספת גרשיים סביב ה-repository כדי למנוע טעויות parse של ה-Service
+        # הגרשיים כאן קריטיים כדי ששם האימג' יעבור תקין
         overrideValues: 'image.repository="$(imageRepository)",image.tag=$(tag)'
-        arguments: '--install'
+        valueFile: 'helm/my-daniel-chart/values.yaml'
+        # הוספתי --wait כדי לוודא שהפודים באמת עולים לפני שמסמנים V ירוק
+        arguments: '--install --wait'
