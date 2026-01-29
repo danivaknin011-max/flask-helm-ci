@@ -1,5 +1,13 @@
 trigger:
-- main
+  batch: true          # מונע הצפה - מריץ רק pipeline אחד כל פעם
+  branches:
+    include:
+    - main
+  paths:
+    include:           # מריץ רק כשמשנים קבצים רלוונטיים
+    - app/*
+    - helm/*
+    - azure-pipelines.yml
 
 pool:
   name: 'my-pool'
@@ -7,7 +15,6 @@ pool:
 variables:
   imageRepository: '213daniel/flask-app'
   tag: '$(Build.BuildId)'
-  # תיקון הקונטקסט ברמת המשתנים
   DOCKER_CONTEXT: 'default'
 
 stages:
@@ -19,7 +26,6 @@ stages:
     steps:
     - task: Docker@2
       displayName: Build and Push Image
-      # הזרקת משתנה הסביבה ישירות למשימה
       env:
         DOCKER_CONTEXT: default
       inputs:
@@ -45,9 +51,9 @@ stages:
         kubernetesServiceConnection: 'azure-devops'
         command: 'upgrade'
         chartType: 'FilePath'
-        # כאן התיקון - הוספת שם התיקייה הפנימית
         chartPath: 'helm/my-daniel-chart' 
         releaseName: 'flask-app'
-        overrideValues: 'image.tag=$(tag)'
-        # וגם כאן - נתיב מלא לקובץ ה-values
+        # שימוש בגרשיים כאן פותר את שגיאת ה-InvalidImageName
+        overrideValues: 'image.repository="$(imageRepository)",image.tag=$(tag)'
         valueFile: 'helm/my-daniel-chart/values.yaml'
+        arguments: '--install --wait'
