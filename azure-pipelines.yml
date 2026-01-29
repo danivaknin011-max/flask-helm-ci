@@ -2,11 +2,13 @@ trigger:
 - main
 
 pool:
-  name: 'my-pool' # שם ה-Pool שלך
+  name: 'my-pool'
 
 variables:
   imageRepository: '213daniel/flask-app'
   tag: '$(Build.BuildId)'
+  # תיקון הקונטקסט ברמת המשתנים
+  DOCKER_CONTEXT: 'default'
 
 stages:
 - stage: Build
@@ -17,8 +19,11 @@ stages:
     steps:
     - task: Docker@2
       displayName: Build and Push Image
+      # הזרקת משתנה הסביבה ישירות למשימה
+      env:
+        DOCKER_CONTEXT: default
       inputs:
-        containerRegistry: 'DockerHub' # השם מהתמונה שלך
+        containerRegistry: 'DockerHub'
         repository: $(imageRepository)
         command: 'buildAndPush'
         Dockerfile: '**/Dockerfile'
@@ -37,7 +42,7 @@ stages:
       displayName: Helm Upgrade
       inputs:
         connectionType: 'Kubernetes Service Connection'
-        kubernetesServiceConnection: 'azure-devops' # השם מהתמונה שלך
+        kubernetesServiceConnection: 'azure-devops'
         command: 'upgrade'
         chartType: 'FilePath'
         chartPath: 'helm' 
