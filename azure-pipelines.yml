@@ -2,7 +2,7 @@ trigger:
 - main
 
 pool:
-  name: 'my-pool' # שם ה-Pool שהגדרת
+  name: 'my-pool' # שם ה-Pool שלך
 
 variables:
   imageRepository: '213daniel/flask-app'
@@ -18,7 +18,7 @@ stages:
     - task: Docker@2
       displayName: Build and Push Image
       inputs:
-        containerRegistry: 'docker-hub-conn' # ודא שזה השם של ה-Service Connection ל-DockerHub
+        containerRegistry: 'DockerHub' # השם מהתמונה שלך
         repository: $(imageRepository)
         command: 'buildAndPush'
         Dockerfile: '**/Dockerfile'
@@ -37,10 +37,10 @@ stages:
       displayName: Helm Upgrade
       inputs:
         connectionType: 'Kubernetes Service Connection'
-        kubernetesServiceConnection: 'k8s-conn' # ודא שזה השם של ה-Connection לקלאסטר שלך
+        kubernetesServiceConnection: 'azure-devops' # השם מהתמונה שלך
         command: 'upgrade'
         chartType: 'FilePath'
-        chartPath: 'helm' # הנתיב לתיקיית ה-Chart שלך
+        chartPath: 'helm' 
         releaseName: 'flask-app'
         overrideValues: 'image.tag=$(tag)'
         valueFile: 'helm/values.yaml'
