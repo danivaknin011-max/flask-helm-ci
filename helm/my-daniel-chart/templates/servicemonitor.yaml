@@ -1,3 +1,4 @@
+{{- if .Values.serviceMonitor.enabled }}
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
@@ -13,3 +14,4 @@ spec:
   - port: http-metrics # ימצא את הפורט הנכון ב-Service
     path: /metrics
     interval: 15s
+{{- end }}
