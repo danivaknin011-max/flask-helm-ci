@@ -1,0 +1,75 @@
+name: CI/CD Pipeline - Flask App
+
+# 1. Trigger: הפעלה בכל דחיפה ל-main
+on:
+  push:
+    branches:
+      - main
+    # אופציונלי: להריץ רק אם יש שינוי בקבצי האפליקציה או ה-Helm
+    paths:
+      - 'app/**'
+      - 'helm/**'
+      - '.github/workflows/ci-cd.yaml'
+
+# הגדרת משתנים גלובליים לשימוש חוזר (מונע Hardcoding)
+env:
+  IMAGE_NAME: 213daniel/flask-app
+  HELM_RELEASE_NAME: flask-app
+  HELM_CHART_PATH: ./helm/my-daniel-chart
+
+jobs:
+  build-and-deploy:
+    name: Build & Deploy to K8s
+    runs-on: ubuntu-latest
+
+    steps:
+      # ---------------------------------------------------------
+      # שלב 1: משיכת הקוד
+      # ---------------------------------------------------------
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # ---------------------------------------------------------
+      # שלב 2: Docker - התחברות ובנייה
+      # ---------------------------------------------------------
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and Push Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./app               # הנתיב לתיקיית האפליקציה (בהתאם למבנה הריפו)
+          file: ./app/Dockerfile       # הנתיב המפורש ל-Dockerfile
+          push: true                   # מבצע Push בפועל
+          tags: |                      # שחזור הלוגיקה: תג רץ + תג latest
+            ${{ env.IMAGE_NAME }}:${{ github.run_number }}
+            ${{ env.IMAGE_NAME }}:latest
+
+      # ---------------------------------------------------------
+      # שלב 3: Kubernetes & Helm - פריסה
+      # ---------------------------------------------------------
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: 'latest' # או גרסה ספציפית כמו 'v3.12.0' ליציבות
+
+      - name: Setup Kubeconfig
+        # יצירת קובץ קונפיגורציה זמני מתוך ה-Secret כדי ש-Helm יוכל לתקשר עם הקלאסטר
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${{ secrets.KUBE_CONFIG }}" > $HOME/.kube/config
+          chmod 600 $HOME/.kube/config
+
+      - name: Deploy with Helm
+        # שחזור מדויק של פקודת ה-Upgrade עם ה-Arguments וה-Overrides
+        run: |
+          helm upgrade --install ${{ env.HELM_RELEASE_NAME }} ${{ env.HELM_CHART_PATH }} \
+            --wait \
+            --set image.repository=${{ env.IMAGE_NAME }} \
+            --set image.tag=${{ github.run_number }}
