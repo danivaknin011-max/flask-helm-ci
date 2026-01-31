@@ -1,7 +1,7 @@
 replicaCount: 2
 
 image:
-  repository: ""
+  repository: 213daniel/flask-app
   tag: latest
   pullPolicy: IfNotPresent
 
@@ -27,3 +27,6 @@ autoscaling:
 
 env:
   secretName: db-creds
+
+serviceMonitor:
+  enabled: false
