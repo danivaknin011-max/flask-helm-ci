@@ -2,12 +2,12 @@ trigger:
   batch: true
   branches:
     include:
-    - main
+      - main
   paths:
     include:
-    - app/*
-    - helm/*
-    - azure-pipelines.yml
+      - app/*
+      - helm/*
+      - azure-pipelines.yml
 
 pool:
   name: 'my-pool'
@@ -17,73 +17,73 @@ variables:
   tag: '$(Build.BuildId)'
 
 stages:
-- stage: Test
-  displayName: Run Unit Tests
-  jobs:
-  - job: Test
-    steps:
-    - script: |
-    pip install -r app/requirements.txt
-    pip install pytest pytest-flask
-    export PYTHONPATH=$PYTHONPATH:$(pwd)/app
-    pytest app/test_app.py
-  displayName: 'Run Pytest'
+  - stage: Test
+    displayName: Run Unit Tests
+    jobs:
+      - job: Test
+        steps:
+          - script: |
+              pip install -r app/requirements.txt
+              pip install pytest pytest-flask
+              export PYTHONPATH=$PYTHONPATH:$(pwd)/app
+              pytest app/test_app.py
+            displayName: 'Run Pytest'
 
-- stage: BuildAndCheck
-  displayName: Build and Security Check
-  dependsOn: Test
-  jobs:
-  - job: Build
-    steps:
-    # 1. בנייה של האימג' מקומית (בלי לדחוף עדיין)
-    - task: Docker@2
-      displayName: "Build Image Locally"
-      env:
-        DOCKER_CONTEXT: 'default'
-      inputs:
-        containerRegistry: 'DockerHub'
-        repository: $(imageRepository)
-        command: 'build'
-        Dockerfile: 'app/Dockerfile'
-        tags: |
-          $(tag)
-          latest
+  - stage: BuildAndCheck
+    displayName: Build and Security Check
+    dependsOn: Test
+    jobs:
+      - job: Build
+        steps:
+          # 1. בנייה של האימג' מקומית (בלי לדחוף עדיין)
+          - task: Docker@2
+            displayName: "Build Image Locally"
+            env:
+              DOCKER_CONTEXT: 'default'
+            inputs:
+              containerRegistry: 'DockerHub'
+              repository: $(imageRepository)
+              command: 'build'
+              Dockerfile: 'app/Dockerfile'
+              tags: |
+                $(tag)
+                latest
 
-    # 2. בדיקת האימג' (Security Scan) בעזרת Trivy
-    # השלב הזה יבדוק אם יש חורי אבטחה באימג' שיצרת
-    - script: |
-        docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
-        aquasec/trivy:latest image --severity HIGH,CRITICAL --exit-code 0 $(imageRepository):$(tag)
-      displayName: 'Scan image for vulnerabilities (Trivy)'
+          # 2. בדיקת האימג' (Security Scan) בעזרת Trivy
+          # השלב הזה יבדוק אם יש חורי אבטחה באימג' שיצרת
+          - script: |
+              docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+              aquasec/trivy:latest image --severity HIGH,CRITICAL --exit-code 0 $(imageRepository):$(tag)
+            displayName: 'Scan image for vulnerabilities (Trivy)'
 
-    # 3. דחיפה של האימג' (רק אם הסריקה עברה)
-    - task: Docker@2
-      displayName: "Push Image to DockerHub"
-      env:
-        DOCKER_CONTEXT: 'default'
-      inputs:
-        containerRegistry: 'DockerHub'
-        repository: $(imageRepository)
-        command: 'push'
-        tags: |
-          $(tag)
-          latest
+          # 3. דחיפה של האימג' (רק אם הסריקה עברה)
+          - task: Docker@2
+            displayName: "Push Image to DockerHub"
+            env:
+              DOCKER_CONTEXT: 'default'
+            inputs:
+              containerRegistry: 'DockerHub'
+              repository: $(imageRepository)
+              command: 'push'
+              tags: |
+                $(tag)
+                latest
 
-- stage: Deploy
-  displayName: Deploy to K8s
-  dependsOn: BuildAndCheck
-  jobs:
-  - job: Deploy
-    steps:
-    - task: HelmDeploy@0
-      displayName: Helm Upgrade
-      inputs:
-        connectionType: 'Kubernetes Service Connection'
-        kubernetesServiceConnection: 'azure-devops'
-        command: 'upgrade'
-        chartType: 'FilePath'
-        chartPath: 'helm/my-daniel-chart' 
-        releaseName: 'flask-app'
-        overrideValues: 'image.repository="$(imageRepository)",image.tag=$(tag)'
-        valueFile: 'helm/my-daniel-chart/values.yaml'
-        arguments: '--install --wait'
+  - stage: Deploy
+    displayName: Deploy to K8s
+    dependsOn: BuildAndCheck
+    jobs:
+      - job: Deploy
+        steps:
+          - task: HelmDeploy@0
+            displayName: Helm Upgrade
+            inputs:
+              connectionType: 'Kubernetes Service Connection'
+              kubernetesServiceConnection: 'azure-devops'
+              command: 'upgrade'
+              chartType: 'FilePath'
+              chartPath: 'helm/my-daniel-chart'
+              releaseName: 'flask-app'
+              overrideValues: 'image.repository="$(imageRepository)",image.tag=$(tag)'
+              valueFile: 'helm/my-daniel-chart/values.yaml'
+              arguments: '--install --wait'
