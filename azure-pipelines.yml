@@ -1,5 +1,5 @@
 trigger:
-  batch: true          # מונע ריבוי ריצות במקביל (פותר "פקק" בתור)
+  batch: true
   branches:
     include:
     - main
@@ -17,34 +17,62 @@ variables:
   tag: '$(Build.BuildId)'
 
 stages:
-- stage: Build
-  displayName: Build and Push
+- stage: Test
+  displayName: Run Unit Tests
+  jobs:
+  - job: Test
+    steps:
+    - script: |
+        pip install -r app/requirements.txt
+        pip install pytest
+        pytest
+      displayName: 'Install and run pytest'
+
+- stage: BuildAndCheck
+  displayName: Build and Security Check
+  dependsOn: Test
   jobs:
   - job: Build
-    displayName: Build
     steps:
+    # 1. בנייה של האימג' מקומית (בלי לדחוף עדיין)
     - task: Docker@2
-      displayName: Build and Push Image
-      # קריטי לסרוויס: מכריח שימוש ב-Context הדיפולטיבי ולא מחפש את desktop-linux
+      displayName: "Build Image Locally"
       env:
         DOCKER_CONTEXT: 'default'
-      # קריטי ל-Windows: מתעלם משגיאת EBUSY בסוף הריצה (מחיקת קבצים זמניים)
-      continueOnError: true
       inputs:
         containerRegistry: 'DockerHub'
         repository: $(imageRepository)
-        command: 'buildAndPush'
-        Dockerfile: 'app/Dockerfile'   # נתיב ספציפי עדיף כשרצים כ-Service
+        command: 'build'
+        Dockerfile: 'app/Dockerfile'
+        tags: |
+          $(tag)
+          latest
+
+    # 2. בדיקת האימג' (Security Scan) בעזרת Trivy
+    # השלב הזה יבדוק אם יש חורי אבטחה באימג' שיצרת
+    - script: |
+        docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+        aquasec/trivy:latest image --severity HIGH,CRITICAL --exit-code 0 $(imageRepository):$(tag)
+      displayName: 'Scan image for vulnerabilities (Trivy)'
+
+    # 3. דחיפה של האימג' (רק אם הסריקה עברה)
+    - task: Docker@2
+      displayName: "Push Image to DockerHub"
+      env:
+        DOCKER_CONTEXT: 'default'
+      inputs:
+        containerRegistry: 'DockerHub'
+        repository: $(imageRepository)
+        command: 'push'
         tags: |
           $(tag)
           latest
 
 - stage: Deploy
   displayName: Deploy to K8s
-  dependsOn: Build    # ירוץ רק אם ה-Build הצליח (או עבר עם שגיאה לא קריטית)
+  dependsOn: BuildAndCheck
   jobs:
   - job: Deploy
-    displayName: Deploy
     steps:
     - task: HelmDeploy@0
       displayName: Helm Upgrade
@@ -55,8 +83,6 @@ stages:
         chartType: 'FilePath'
         chartPath: 'helm/my-daniel-chart' 
         releaseName: 'flask-app'
-        # הגרשיים כאן קריטיים כדי ששם האימג' יעבור תקין
         overrideValues: 'image.repository="$(imageRepository)",image.tag=$(tag)'
         valueFile: 'helm/my-daniel-chart/values.yaml'
-        # הוספתי --wait כדי לוודא שהפודים באמת עולים לפני שמסמנים V ירוק
         arguments: '--install --wait'

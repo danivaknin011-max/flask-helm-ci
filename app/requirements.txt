@@ -2,3 +2,5 @@ flask
 pymysql
 cryptography
 prometheus_client
+pytest
+pytest-flask
