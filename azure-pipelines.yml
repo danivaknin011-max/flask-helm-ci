@@ -23,10 +23,11 @@ stages:
   - job: Test
     steps:
     - script: |
-        pip install -r app/requirements.txt
-        pip install pytest
-        pytest
-      displayName: 'Install and run pytest'
+    pip install -r app/requirements.txt
+    pip install pytest pytest-flask
+    export PYTHONPATH=$PYTHONPATH:$(pwd)/app
+    pytest app/test_app.py
+  displayName: 'Run Pytest'
 
 - stage: BuildAndCheck
   displayName: Build and Security Check
