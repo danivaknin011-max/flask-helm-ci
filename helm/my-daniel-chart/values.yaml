@@ -28,5 +28,3 @@ autoscaling:
 env:
   secretName: db-creds
 
-serviceMonitor:
-  enabled: false
