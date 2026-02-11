@@ -27,7 +27,7 @@ pipeline {
                 - name: dockersock
                   mountPath: /var/run/docker.sock
               - name: helm
-                image: alpine/helm:3.12
+                image: dtzar/helm-kubectl:3.13.2
                 command:
                 - cat
                 tty: true
@@ -63,56 +63,47 @@ pipeline {
         }
 
         // שלב 2: בנייה וסריקה (רץ בתוך קונטיינר Docker)
-        stage('Build & Check') {
-            steps {
-                container('docker') {
-                    script {
-                        // בנייה מקומית
-                        sh "docker build -t ${IMAGE_REPO}:${TAG} -t ${IMAGE_REPO}:latest -f app/Dockerfile ."
-                        
-                        // סריקת אבטחה עם Trivy
-                        // מריצים את Trivy כקונטיינר "אח" דרך ה-Socket המשותף
-                        // בדיוק כמו שעשית ב-Azure
-                        echo "Running Trivy Scan..."
-                        sh """
-                            docker run --rm \
-                            -v /var/run/docker.sock:/var/run/docker.sock \
-                            aquasec/trivy:latest image \
-                            --severity HIGH,CRITICAL \
-                            --exit-code 0 \
-                            ${IMAGE_REPO}:${TAG}
-                        """
+ stage('Build & Check') {
+    steps {
+        container('docker') {
+            script {
+                // בנייה: נכנסים ל-app ובונים מהנקודה הנוכחית
+                sh "cd app && docker build -t ${IMAGE_REPO}:${TAG} -t ${IMAGE_REPO}:latest ."
+                
+                echo "Running Trivy Scan..."
+                sh """
+                    docker run --rm \
+                    -v /var/run/docker.sock:/var/run/docker.sock \
+                    aquasec/trivy:latest image \
+                    --severity HIGH,CRITICAL \
+                    --exit-code 0 \
+                    ${IMAGE_REPO}:${TAG}
+                """
 
-                        // התחברות ודחיפה (רק אם הסריקה עברה)
-                        withCredentials([usernamePassword(credentialsId: DOCKER_CREDENTIALS_ID, usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                            sh """
-                                echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
-                                docker push ${IMAGE_REPO}:${TAG}
-                                docker push ${IMAGE_REPO}:latest
-                            """
-                        }
-                    }
+                // התחברות ודחיפה - שים לב ל-Backslash לפני ה-DOCKER_PASS
+                withCredentials([usernamePassword(credentialsId: DOCKER_CREDENTIALS_ID, usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                    sh """
+                        echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin
+                        docker push ${IMAGE_REPO}:${TAG}
+                        docker push ${IMAGE_REPO}:latest
+                    """
                 }
             }
         }
+    }
+}
 
         // שלב 3: דיפלוי (רץ בתוך קונטיינר Helm)
-        stage('Deploy') {
-            steps {
-                container('helm') {
-                    script {
-                        // ב-Jenkins בתוך הקלאסטר אין צורך ב-Service Connection חיצוני
-                        // הוא משתמש ב-ServiceAccount של הפוד עצמו
-                        sh """
-                            helm upgrade --install flask-app ./helm/my-daniel-chart \
-                            --set image.repository=${IMAGE_REPO} \
-                            --set image.tag=${TAG} \
-                            -f helm/my-daniel-chart/values.yaml \
-                            --wait
-                        """
-                    }
-                }
-            }
+       stage('Deploy to K8s') {
+    steps {
+        script {
+            sh """
+              helm upgrade --install flask-app ./helm/my-daniel-chart \
+              --namespace default \
+              --set image.repository=${imageRepository} \
+              --set image.tag=${tag} \
+              --wait
+            """
         }
     }
 }

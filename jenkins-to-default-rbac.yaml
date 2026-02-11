@@ -1,28 +1,25 @@
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: jenkins-deployer
-  namespace: jenkins      # <--- שונה מ-default ל-jenkins
----
+# 1. מגדירים תפקיד (Role) בתוך ה-namespace של האפליקציה (default)
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: jenkins-deployer-role
-  namespace: jenkins      # <--- שונה מ-default ל-jenkins
+  namespace: default      # <--- שים לב: זה ב-default
 rules:
   - apiGroups: ["", "apps", "extensions", "batch", "networking.k8s.io"]
     resources: ["deployments", "replicasets", "pods", "jobs", "services", "secrets", "configmaps", "ingresses", "persistentvolumeclaims"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
 ---
+# 2. מחברים (Binding) את התפקיד הנ"ל ל-ServiceAccount של ג'נקינס
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: jenkins-deployer-binding
-  namespace: jenkins      # <--- שונה מ-default ל-jenkins
+  name: jenkins-deployer-binding-default
+  namespace: default      # <--- ה-Binding יושב ב-default
 subjects:
   - kind: ServiceAccount
-    name: jenkins-deployer
-    namespace: jenkins
+    name: jenkins-deployer # השם של ה-SA
+    namespace: jenkins     # <--- אבל הוא מגיע מ-namespace jenkins!
 roleRef:
   kind: Role
   name: jenkins-deployer-role

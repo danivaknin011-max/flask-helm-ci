@@ -9,7 +9,7 @@ service:
   type: NodePort
   port: 80
   targetPort: 5000
-  NodePort: 30007
+  nodePort: 30007  # שינוי מ-N גדולה ל-n קטנה
 
 resources:
   requests:
@@ -19,12 +19,12 @@ resources:
     cpu: 500m
     memory: 256Mi
 
+# זה החלק שגרם לשגיאה - אנחנו מכבים אותו כרגע
 autoscaling:
-  enabled: true
+  enabled: false  
   minReplicas: 2
   maxReplicas: 5
   targetCPU: 50
 
 env:
   secretName: db-creds
-
