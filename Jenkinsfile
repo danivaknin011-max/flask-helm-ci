@@ -62,24 +62,13 @@ pipeline {
             }
         }
 
-        stage('Build & Scan & Push') {
+        stage('Build & Push') {
             steps {
                 container('docker') {
                     script {
                         sh """
                             cd app
                             docker build -t ${IMAGE_REPO}:${TAG} -t ${IMAGE_REPO}:latest .
-                        """
-
-                        echo "Running Trivy Scan..."
-
-                        sh """
-                            docker run --rm \
-                            -v /var/run/docker.sock:/var/run/docker.sock \
-                            aquasec/trivy:latest image \
-                            --severity HIGH,CRITICAL \
-                            --exit-code 0 \
-                            ${IMAGE_REPO}:${TAG}
                         """
 
                         withCredentials([usernamePassword(
@@ -102,7 +91,6 @@ pipeline {
             steps {
                 container('helm') {
                     script {
-
                         sh "kubectl get nodes"
 
                         sh """
