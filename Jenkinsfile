@@ -94,16 +94,18 @@ pipeline {
 }
 
         // שלב 3: דיפלוי (רץ בתוך קונטיינר Helm)
-       stage('Deploy to K8s') {
+            stage('Deploy to K8s') {
     steps {
         script {
             sh """
               helm upgrade --install flask-app ./helm/my-daniel-chart \
               --namespace default \
-              --set image.repository=${imageRepository} \
-              --set image.tag=${tag} \
+              --set image.repository=${IMAGE_REPO} \
+              --set image.tag=${TAG} \
               --wait
             """
         }
+    }
+}
     }
 }
