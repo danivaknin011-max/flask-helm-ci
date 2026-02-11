@@ -1,54 +1,98 @@
 pipeline {
     agent {
         kubernetes {
-            // הגדרת ה-Pod שיריץ את הג'וב
-            yaml """
-apiVersion: v1
-kind: Pod
-metadata:
-  labels:
-    app: jenkins-agent
-spec:
-  serviceAccountName: jenkins-deployer # ה-ServiceAccount שיצרנו קודם
-  containers:
-  - name: docker
-    image: docker:dind
-    command:
-    - cat
-    tty: true
-    volumeMounts:
-      - mountPath: /var/run/docker.sock
-        name: docker-sock
-  
-  # הוספנו את הקונטיינר הזה - הוא מכיל את HELM
-  - name: helm
-    image: alpine/helm:3.12.0
-    command:
-    - cat
-    tty: true
-
-  volumes:
-    - name: docker-sock
-      hostPath:
-        path: /var/run/docker.sock
-"""
+            yaml '''
+            apiVersion: v1
+            kind: Pod
+            metadata:
+              labels:
+                app: jenkins-agent
+            spec:
+              serviceAccountName: jenkins-deployer
+              containers:
+              - name: python
+                image: python:3.9-slim
+                command: ['cat']
+                tty: true
+              - name: docker
+                image: docker:cli
+                command: ['cat']
+                tty: true
+                volumeMounts:
+                - name: dockersock
+                  mountPath: /var/run/docker.sock
+              - name: helm
+                image: dtzar/helm-kubectl:3.13.2
+                command: ['cat']
+                tty: true
+              volumes:
+              - name: dockersock
+                hostPath:
+                  path: /var/run/docker.sock
+            '''
         }
     }
 
     environment {
-        // משתנים גלובליים
-        imageRepository = '213daniel/flask-app'
-        tag = "${env.BUILD_NUMBER}"
+        IMAGE_REPO = '213daniel/flask-app'
+        TAG = "${env.BUILD_NUMBER}"
+        DOCKER_CREDENTIALS_ID = 'dockerhub-creds'
+        NAMESPACE = "default"
+        RELEASE_NAME = "flask-app"
     }
 
     stages {
-        stage('Build and Push') {
+
+        stage('Checkout') {
             steps {
-                container('docker') { // שימוש בקונטיינר דוקר
+                checkout scm
+            }
+        }
+
+        stage('Test') {
+            steps {
+                container('python') {
+                    sh '''
+                        pip install -r app/requirements.txt
+                        pip install pytest pytest-flask
+                        export PYTHONPATH=$PYTHONPATH:$(pwd)/app
+                        pytest app/test_app.py
+                    '''
+                }
+            }
+        }
+
+        stage('Build & Scan & Push') {
+            steps {
+                container('docker') {
                     script {
-                        // כאן הלוגיקה של בניית הדוקר ודחיפה (מה שעשית קודם)
-                        sh "docker build -t ${imageRepository}:${tag} ./app"
-                        // sh "docker push..." (הנחתי שיש לך פה לוגין מסודר)
+                        sh """
+                            cd app
+                            docker build -t ${IMAGE_REPO}:${TAG} -t ${IMAGE_REPO}:latest .
+                        """
+
+                        echo "Running Trivy Scan..."
+
+                        sh """
+                            docker run --rm \
+                            -v /var/run/docker.sock:/var/run/docker.sock \
+                            aquasec/trivy:latest image \
+                            --severity HIGH,CRITICAL \
+                            --exit-code 0 \
+                            ${IMAGE_REPO}:${TAG}
+                        """
+
+                        withCredentials([usernamePassword(
+                            credentialsId: DOCKER_CREDENTIALS_ID,
+                            usernameVariable: 'DOCKER_USER',
+                            passwordVariable: 'DOCKER_PASS'
+                        )]) {
+                            sh """
+                                echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin
+                                docker push ${IMAGE_REPO}:${TAG}
+                                docker push ${IMAGE_REPO}:latest
+                            """
+                        }
                     }
                 }
             }
@@ -56,19 +100,43 @@ spec:
 
         stage('Deploy to K8s') {
             steps {
-                // *** זה התיקון הקריטי ***
-                // אנחנו אומרים לג'נקינס: תריץ את הפקודות הבאות בתוך הקונטיינר שנקרא helm
                 container('helm') {
                     script {
+
+                        sh "kubectl get nodes"
+
                         sh """
-                            helm upgrade --install flask-app ./helm/my-daniel-chart \
-                            --namespace default \
-                            --set image.repository=${imageRepository} \
-                            --set image.tag=${tag} \
-                            --wait
+                            kubectl create namespace ${NAMESPACE} --dry-run=client -o yaml | kubectl apply -f -
+                        """
+
+                        sh """
+                            helm upgrade --install ${RELEASE_NAME} ./helm/my-daniel-chart \
+                            --namespace ${NAMESPACE} \
+                            --set image.repository=${IMAGE_REPO} \
+                            --set image.tag=${TAG} \
+                            --wait \
+                            --timeout 120s
                         """
                     }
                 }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "🚀 Deployment Succeeded - Build ${TAG}"
+        }
+        failure {
+            echo "❌ Deployment Failed - Rolling back..."
+            container('helm') {
+                sh "helm rollback ${RELEASE_NAME} || true"
+            }
+        }
+        always {
+            echo "Cleaning Docker images..."
+            container('docker') {
+                sh "docker rmi ${IMAGE_REPO}:${TAG} ${IMAGE_REPO}:latest || true"
             }
         }
     }
