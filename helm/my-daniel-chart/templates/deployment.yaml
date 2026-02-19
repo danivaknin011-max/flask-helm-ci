@@ -11,17 +11,17 @@ spec:
       labels:
         app: my-app
     spec:
-    containers:
+      containers:
         - name: python-app
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - containerPort: {{ .Values.service.targetPort }}
-          # 1. הוספת משתנה הסביבה לכתובת ה-DB
+          # הוספת משתנה סביבה לכתובת ה-DB
           env:
             - name: DB_HOST
               value: {{ .Values.config.DB_HOST | default "mysql" | quote }}
-          # 2. טעינת שאר הסודות (סיסמא וכו')
+          # טעינת שאר הסודות (סיסמא וכו')
           envFrom:
             - secretRef:
                 name: {{ .Values.env.secretName }}
