@@ -3,3 +3,4 @@ name: my-daniel-chart
 description: A minimal Helm chart for Python App
 version: 0.1.0
 appVersion: "1.0.0"
+# This is a basic Chart.yaml file for a Helm chart named "my-daniel-chart". It includes metadata such as the API version, chart name, description, version, and application version. You can customize these fields as needed for your specific application.
