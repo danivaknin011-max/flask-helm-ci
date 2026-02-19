@@ -82,46 +82,17 @@ pipeline {
     }
 }
 
-        stage('Deploy to K8s') {
-            steps {
-                container('helm') {
-                    script {
-                        sh "kubectl get nodes"
-
-                        sh """
-                            kubectl create namespace ${NAMESPACE} --dry-run=client -o yaml | kubectl apply -f -
-                        """
-
-                        sh """
-                            helm upgrade --install ${RELEASE_NAME} ./helm/my-daniel-chart \
-                            --namespace ${NAMESPACE} \
-                            --set image.repository=${IMAGE_REPO} \
-                            --set image.tag=${TAG} \
-                            --set config.DB_HOST=mysql.default.svc.cluster.local \
-                            --wait \
-                            --timeout 300s
-                        """
-                    }
-                }
-            }
-        }
-    }
-
-    post {
-        success {
-            echo "🚀 Deployment Succeeded - Build ${TAG}"
-        }
-        failure {
-            echo "❌ Deployment Failed - Rolling back..."
-            container('helm') {
-                sh "helm rollback ${RELEASE_NAME} || true"
-            }
-        }
-        always {
-            echo "Cleaning Docker images..."
-            container('docker') {
-                sh "docker rmi ${IMAGE_REPO}:${TAG} ${IMAGE_REPO}:latest || true"
-            }
+        // שלב 3: דיפלוי (רץ בתוך קונטיינר Helm)
+       stage('Deploy to K8s') {
+    steps {
+        script {
+            sh """
+              helm upgrade --install flask-app ./helm/my-daniel-chart \
+              --namespace default \
+              --set image.repository=${imageRepository} \
+              --set image.tag=${tag} \
+              --wait
+            """
         }
     }
 }
