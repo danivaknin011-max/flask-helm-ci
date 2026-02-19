@@ -62,30 +62,25 @@ pipeline {
             }
         }
 
-        stage('Build & Push') {
-            steps {
-                container('docker') {
-                    script {
-                        sh """
-                            cd app
-                            docker build -t ${IMAGE_REPO}:${TAG} -t ${IMAGE_REPO}:latest .
-                        """
-
-                        withCredentials([usernamePassword(
-                            credentialsId: DOCKER_CREDENTIALS_ID,
-                            usernameVariable: 'DOCKER_USER',
-                            passwordVariable: 'DOCKER_PASS'
-                        )]) {
-                            sh """
-                                echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin
-                                docker push ${IMAGE_REPO}:${TAG}
-                                docker push ${IMAGE_REPO}:latest
-                            """
-                        }
-                    }
-                }
+      stage('Build & Push') {
+    steps {
+        container('docker') {
+            withCredentials([usernamePassword(
+                credentialsId: DOCKER_CREDENTIALS_ID,
+                usernameVariable: 'DOCKER_USER',
+                passwordVariable: 'DOCKER_PASS'
+            )]) {
+                sh """
+                    cd app
+                    docker build -t ${IMAGE_REPO}:${TAG} -t ${IMAGE_REPO}:latest .
+                    echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin
+                    docker push ${IMAGE_REPO}:${TAG}
+                    docker push ${IMAGE_REPO}:latest
+                """
             }
         }
+    }
+}
 
         stage('Deploy to K8s') {
             steps {
