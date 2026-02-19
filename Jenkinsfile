@@ -1,8 +1,6 @@
 pipeline {
     agent {
         kubernetes {
-            // הגדרת ה-Pod שירוץ כ-Agent
-            // אנחנו משתמשים ב-3 קונטיינרים: python, docker, helm
             yaml '''
             apiVersion: v1
             kind: Pod
@@ -10,26 +8,22 @@ pipeline {
               labels:
                 app: jenkins-agent
             spec:
-              # וודא שזה ה-ServiceAccount שיש לו הרשאות Helm ב-Cluster שלך
               serviceAccountName: jenkins-deployer
               containers:
               - name: python
                 image: python:3.9-slim
-                command:
-                - cat
+                command: ['cat']
                 tty: true
               - name: docker
                 image: docker:cli
-                command:
-                - cat
+                command: ['cat']
                 tty: true
                 volumeMounts:
                 - name: dockersock
                   mountPath: /var/run/docker.sock
               - name: helm
                 image: dtzar/helm-kubectl:3.13.2
-                command:
-                - cat
+                command: ['cat']
                 tty: true
               volumes:
               - name: dockersock
@@ -40,15 +34,21 @@ pipeline {
     }
 
     environment {
-        // מיפוי משתנים בדומה ל-Azure DevOps
         IMAGE_REPO = '213daniel/flask-app'
-        // שימוש ב-BUILD_NUMBER של ג'נקינס כתחליף ל-BuildId
-        TAG = "${env.BUILD_NUMBER}" 
+        TAG = "${env.BUILD_NUMBER}"
         DOCKER_CREDENTIALS_ID = 'dockerhub-creds'
+        NAMESPACE = "default"
+        RELEASE_NAME = "flask-app"
     }
 
     stages {
-        // שלב 1: טסטים (רץ בתוך קונטיינר Python)
+
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
         stage('Test') {
             steps {
                 container('python') {
@@ -62,48 +62,66 @@ pipeline {
             }
         }
 
-        // שלב 2: בנייה וסריקה (רץ בתוך קונטיינר Docker)
- stage('Build & Check') {
+      stage('Build & Push') {
     steps {
         container('docker') {
-            script {
-                // בנייה: נכנסים ל-app ובונים מהנקודה הנוכחית
-                sh "cd app && docker build -t ${IMAGE_REPO}:${TAG} -t ${IMAGE_REPO}:latest ."
-                
-                echo "Running Trivy Scan..."
+            withCredentials([usernamePassword(
+                credentialsId: DOCKER_CREDENTIALS_ID,
+                usernameVariable: 'DOCKER_USER',
+                passwordVariable: 'DOCKER_PASS'
+            )]) {
                 sh """
-                    docker run --rm \
-                    -v /var/run/docker.sock:/var/run/docker.sock \
-                    aquasec/trivy:latest image \
-                    --severity HIGH,CRITICAL \
-                    --exit-code 0 \
-                    ${IMAGE_REPO}:${TAG}
+                    cd app
+                    docker build -t ${IMAGE_REPO}:${TAG} -t ${IMAGE_REPO}:latest .
+                    echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin
+                    docker push ${IMAGE_REPO}:${TAG}
+                    docker push ${IMAGE_REPO}:latest
                 """
-
-                // התחברות ודחיפה - שים לב ל-Backslash לפני ה-DOCKER_PASS
-                withCredentials([usernamePassword(credentialsId: DOCKER_CREDENTIALS_ID, usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                    sh """
-                        echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin
-                        docker push ${IMAGE_REPO}:${TAG}
-                        docker push ${IMAGE_REPO}:latest
-                    """
-                }
             }
         }
     }
 }
 
-        // שלב 3: דיפלוי (רץ בתוך קונטיינר Helm)
-       stage('Deploy to K8s') {
-    steps {
-        script {
-            sh """
-              helm upgrade --install flask-app ./helm/my-daniel-chart \
-              --namespace default \
-              --set image.repository=${imageRepository} \
-              --set image.tag=${tag} \
-              --wait
-            """
+        stage('Deploy to K8s') {
+            steps {
+                container('helm') {
+                    script {
+                        sh "kubectl get nodes"
+
+                        sh """
+                            kubectl create namespace ${NAMESPACE} --dry-run=client -o yaml | kubectl apply -f -
+                        """
+
+                        sh """
+                            helm upgrade --install ${RELEASE_NAME} ./helm/my-daniel-chart \
+                            --namespace ${NAMESPACE} \
+                            --set image.repository=${IMAGE_REPO} \
+                            --set image.tag=${TAG} \
+                            --set config.DB_HOST=mysql.default.svc.cluster.local \
+                            --wait \
+                            --timeout 300s
+                        """
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "🚀 Deployment Succeeded - Build ${TAG}"
+        }
+        failure {
+            echo "❌ Deployment Failed - Rolling back..."
+            container('helm') {
+                sh "helm rollback ${RELEASE_NAME} || true"
+            }
+        }
+        always {
+            echo "Cleaning Docker images..."
+            container('docker') {
+                sh "docker rmi ${IMAGE_REPO}:${TAG} ${IMAGE_REPO}:latest || true"
+            }
         }
     }
 }
