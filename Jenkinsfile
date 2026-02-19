@@ -97,6 +97,7 @@ pipeline {
                             --namespace ${NAMESPACE} \
                             --set image.repository=${IMAGE_REPO} \
                             --set image.tag=${TAG} \
+                            --set config.DB_HOST=mysql.default.svc.cluster.local \
                             --wait \
                             --timeout 300s
                         """
