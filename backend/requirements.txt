@@ -4,3 +4,4 @@ cryptography
 prometheus_client
 pytest
 pytest-flask
+flask-cors

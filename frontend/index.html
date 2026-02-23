@@ -137,7 +137,7 @@
 <script>
     async function updateBalance() {
         try {
-            const response = await fetch('/balance');
+            const response = await fetch('/api/balance');
             const data = await response.json();
             // אנימציית מספרים פשוטה
             document.getElementById('balance').innerText = '₪' + data.balance.toLocaleString();
@@ -154,7 +154,7 @@
         }
 
         try {
-            const response = await fetch('/' + action, {
+            const response = await fetch('/api/' + action, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ amount: amount })

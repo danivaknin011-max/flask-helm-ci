@@ -34,12 +34,12 @@ pipeline {
     }
 
     options {
-        // השורה הזו דואגת שירוץ רק build אחד כל פעם
         disableConcurrentBuilds()
     }
 
     environment {
-        IMAGE_REPO = '213daniel/flask-app'
+        IMAGE_REPO_BACKEND = '213daniel/flask-app-backend'
+        IMAGE_REPO_FRONTEND = '213daniel/flask-app-frontend'
         TAG = "${env.BUILD_NUMBER}"
         DOCKER_CREDENTIALS_ID = 'dockerhub-creds'
         NAMESPACE = "default"
@@ -57,10 +57,10 @@ pipeline {
             steps {
                 container('python') {
                     sh '''
-                        pip install -r app/requirements.txt
+                        pip install -r backend/requirements.txt
                         pip install pytest pytest-flask
-                        export PYTHONPATH=$PYTHONPATH:$(pwd)/app
-                        pytest app/test_app.py
+                        export PYTHONPATH=$PYTHONPATH:$(pwd)/backend
+                        pytest backend/test_app.py
                     '''
                 }
             }
@@ -75,11 +75,14 @@ pipeline {
                         passwordVariable: 'DOCKER_PASS'
                     )]) {
                         sh """
-                            cd app
-                            docker build -t ${IMAGE_REPO}:${TAG} -t ${IMAGE_REPO}:latest .
+                            # --- Backend ---
+                            docker build -t ${IMAGE_REPO_BACKEND}:${TAG} ./backend
                             echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin
-                            docker push ${IMAGE_REPO}:${TAG}
-                            docker push ${IMAGE_REPO}:latest
+                            docker push ${IMAGE_REPO_BACKEND}:${TAG}
+
+                            # --- Frontend ---
+                            docker build -t ${IMAGE_REPO_FRONTEND}:${TAG} ./frontend
+                            docker push ${IMAGE_REPO_FRONTEND}:${TAG}
                         """
                     }
                 }
@@ -95,8 +98,10 @@ pipeline {
                         sh """
                             helm upgrade --install ${RELEASE_NAME} ./helm/my-daniel-chart \
                             --namespace ${NAMESPACE} \
-                            --set image.repository=${IMAGE_REPO} \
-                            --set image.tag=${TAG} \
+                            --set backend.image.repository=${IMAGE_REPO_BACKEND} \
+                            --set backend.image.tag=${TAG} \
+                            --set frontend.image.repository=${IMAGE_REPO_FRONTEND} \
+                            --set frontend.image.tag=${TAG} \
                             --set config.DB_HOST=mysql.default.svc.cluster.local \
                             --wait \
                             --timeout 300s
@@ -120,7 +125,7 @@ pipeline {
         always {
             echo "Cleaning Docker images..."
             container('docker') {
-                sh "docker rmi ${IMAGE_REPO}:${TAG} ${IMAGE_REPO}:latest || true"
+                sh "docker rmi ${IMAGE_REPO_BACKEND}:${TAG} ${IMAGE_REPO_FRONTEND}:${TAG} || true"
             }
         }
     }

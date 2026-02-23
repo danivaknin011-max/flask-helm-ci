@@ -1,30 +1,18 @@
-replicaCount: 2
+backend:
+  image:
+    repository: "213daniel/flask-app-backend"
+    tag: "latest"
+  service:
+    port: 5000
+  resources: {}
 
-image:
-  repository: 213daniel/flask-app
-  tag: latest
-  pullPolicy: IfNotPresent
+frontend:
+  image:
+    repository: "213daniel/flask-app-frontend"
+    tag: "latest"
+  service:
+    port: 80
+  resources: {}
 
-service:
-  type: NodePort
-  port: 80
-  targetPort: 5000
-  nodePort: 30007  # שינוי מ-N גדולה ל-n קטנה
-
-resources:
-  requests:
-    cpu: 100m
-    memory: 128Mi
-  limits:
-    cpu: 500m
-    memory: 256Mi
-
-# זה החלק שגרם לשגיאה - אנחנו מכבים אותו כרגע
-autoscaling:
-  enabled: false  
-  minReplicas: 2
-  maxReplicas: 5
-  targetCPU: 50
-
-env:
-  secretName: db-creds
+config:
+  DB_HOST: "mysql.default.svc.cluster.local"
