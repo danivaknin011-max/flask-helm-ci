@@ -33,6 +33,11 @@ pipeline {
         }
     }
 
+    options {
+        // השורה הזו דואגת שירוץ רק build אחד כל פעם
+        disableConcurrentBuilds()
+    }
+
     environment {
         IMAGE_REPO = '213daniel/flask-app'
         TAG = "${env.BUILD_NUMBER}"
@@ -42,7 +47,6 @@ pipeline {
     }
 
     stages {
-
         stage('Checkout') {
             steps {
                 checkout scm
@@ -62,36 +66,32 @@ pipeline {
             }
         }
 
-      stage('Build & Push') {
-    steps {
-        container('docker') {
-            withCredentials([usernamePassword(
-                credentialsId: DOCKER_CREDENTIALS_ID,
-                usernameVariable: 'DOCKER_USER',
-                passwordVariable: 'DOCKER_PASS'
-            )]) {
-                sh """
-                    cd app
-                    docker build -t ${IMAGE_REPO}:${TAG} -t ${IMAGE_REPO}:latest .
-                    echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin
-                    docker push ${IMAGE_REPO}:${TAG}
-                    docker push ${IMAGE_REPO}:latest
-                """
+        stage('Build & Push') {
+            steps {
+                container('docker') {
+                    withCredentials([usernamePassword(
+                        credentialsId: DOCKER_CREDENTIALS_ID,
+                        usernameVariable: 'DOCKER_USER',
+                        passwordVariable: 'DOCKER_PASS'
+                    )]) {
+                        sh """
+                            cd app
+                            docker build -t ${IMAGE_REPO}:${TAG} -t ${IMAGE_REPO}:latest .
+                            echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin
+                            docker push ${IMAGE_REPO}:${TAG}
+                            docker push ${IMAGE_REPO}:latest
+                        """
+                    }
+                }
             }
         }
-    }
-}
 
         stage('Deploy to K8s') {
             steps {
                 container('helm') {
                     script {
                         sh "kubectl get nodes"
-
-                        sh """
-                            kubectl create namespace ${NAMESPACE} --dry-run=client -o yaml | kubectl apply -f -
-                        """
-
+                        sh "kubectl create namespace ${NAMESPACE} --dry-run=client -o yaml | kubectl apply -f -"
                         sh """
                             helm upgrade --install ${RELEASE_NAME} ./helm/my-daniel-chart \
                             --namespace ${NAMESPACE} \
