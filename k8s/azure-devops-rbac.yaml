@@ -16,3 +16,4 @@ subjects:
 - kind: ServiceAccount
   name: azure-devops
   namespace: default
+# This YAML file defines a ServiceAccount named "azure-devops" in the "default" namespace and a ClusterRoleBinding that grants this ServiceAccount cluster-admin privileges. This setup is typically used to allow Azure DevOps pipelines to interact with the Kubernetes cluster with elevated permissions.s
