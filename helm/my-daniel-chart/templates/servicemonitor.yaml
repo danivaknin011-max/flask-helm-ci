@@ -9,7 +9,7 @@ metadata:
 spec:
   selector:
     matchLabels:
-      app: my-app # ימצא את ה-Service בזכות ה-labels שהוספנו למעלה
+      app: backend # ימצא את ה-Service בזכות ה-labels שהוספנו למעלה
   endpoints:
   - port: http-metrics # ימצא את הפורט הנכון ב-Service
     path: /metrics

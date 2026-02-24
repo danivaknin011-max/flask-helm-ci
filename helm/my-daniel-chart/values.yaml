@@ -3,6 +3,7 @@ backend:
     repository: "213daniel/flask-app-backend"
     tag: "latest"
   service:
+    type: ClusterIP
     port: 5000
   resources: {}
 
@@ -11,8 +12,13 @@ frontend:
     repository: "213daniel/flask-app-frontend"
     tag: "latest"
   service:
+    type: NodePort
     port: 80
+    nodePort: 30080
   resources: {}
+
+env:
+  secretName: "mysql-credentials"
 
 config:
   DB_HOST: "mysql.default.svc.cluster.local"

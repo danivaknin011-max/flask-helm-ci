@@ -3,10 +3,10 @@ kind: Service
 metadata:
   name: frontend-service
 spec:
-  type: NodePort # כדי שתוכל לגשת אליו מהדפדפן שלך ב-Docker Desktop
+  type: {{ .Values.frontend.service.type }}
   ports:
-    - port: 80
+    - port: {{ .Values.frontend.service.port }}
       targetPort: 80
-      nodePort: 30080
+      nodePort: {{ .Values.frontend.service.nodePort }}
   selector:
     app: frontend
