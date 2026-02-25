@@ -1,8 +1,9 @@
-# ---- הקיים שלך ----
 backend:
+  replicaCount: 1
   image:
     repository: "213daniel/flask-app-backend"
     tag: "latest"
+    pullPolicy: IfNotPresent
   service:
     type: ClusterIP
     port: 5000
@@ -19,12 +20,8 @@ frontend:
   resources: {}
 
 env:
-  secretName: "mysql-credentials"
+  secretName: "db-creds"
 
-config:
-  DB_HOST: "mysql.default.svc.cluster.local"
-
-# ---- תוספת חדשה: autoscaling ----
 autoscaling:
   minReplicas: 1
   maxReplicas: 3

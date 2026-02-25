@@ -11,7 +11,7 @@ spec:
       port: {{ .Values.backend.service.port }}
       targetPort: 5000
     - name: http-metrics # השם שה-ServiceMonitor מחפש
-      port: 5000
-      targetPort: 5000
+      port: 5001
+      targetPort: 5001
   selector:
     app: backend
