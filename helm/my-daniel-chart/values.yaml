@@ -2,7 +2,7 @@
 backend:
   image:
     repository: "213daniel/flask-app-backend"
-    tag: "latest"
+    tag: "46"
   service:
     type: ClusterIP
     port: 5000
@@ -11,7 +11,7 @@ backend:
 frontend:
   image:
     repository: "213daniel/flask-app-frontend"
-    tag: "latest"
+    tag: "46"
   service:
     type: NodePort
     port: 80
