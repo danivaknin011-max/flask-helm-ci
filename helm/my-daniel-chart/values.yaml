@@ -1,3 +1,4 @@
+# ---- הקיים שלך ----
 backend:
   image:
     repository: "213daniel/flask-app-backend"
@@ -22,3 +23,9 @@ env:
 
 config:
   DB_HOST: "mysql.default.svc.cluster.local"
+
+# ---- תוספת חדשה: autoscaling ----
+autoscaling:
+  minReplicas: 1
+  maxReplicas: 3
+  targetCPU: 50
