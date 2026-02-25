@@ -42,8 +42,7 @@ pipeline {
         IMAGE_REPO_FRONTEND = '213daniel/flask-app-frontend'
         TAG = "${env.BUILD_NUMBER}"
         DOCKER_CREDENTIALS_ID = 'dockerhub-creds'
-        // נדרש Credentials חדש בג'נקינס מסוג Secret Text בשם 'github-token'
-        GITHUB_CREDENTIALS_ID = 'github-token' 
+        GITHUB_CREDENTIALS_ID = 'github-token'
         GITHUB_REPO = 'danivaknin011-max/flask-helm-ci'
     }
 
@@ -74,7 +73,6 @@ pipeline {
                     sh "helm lint ./helm/my-daniel-chart"
                     
                     echo "Running Helm Template (Dry Run)..."
-                    // מוודא שה-Template מתרנדר נכון ללא שגיאות
                     sh "helm template test-release ./helm/my-daniel-chart --set backend.image.tag=${TAG} --set frontend.image.tag=${TAG}"
                 }
             }
@@ -101,17 +99,27 @@ pipeline {
                     }
                 }
             }
+            post {
+                always {
+                    container('docker') {
+                        echo "🧹 Cleaning Docker images locally..."
+                        sh "docker rmi ${IMAGE_REPO_BACKEND}:${TAG} ${IMAGE_REPO_FRONTEND}:${TAG} || true"
+                    }
+                }
+            }
         }
 
         stage('GitOps: Update Values & Create PR') {
-            // רץ רק אם אנחנו על Feature Branch (ולא ב-Main)
             when {
                 not { branch 'main' }
             }
             steps {
-                container('helm') { // משתמשים בקונטיינר הזה כי יש בו git ו-curl
+                container('helm') {
                     withCredentials([string(credentialsId: GITHUB_CREDENTIALS_ID, variable: 'GITHUB_TOKEN')]) {
                         sh """
+                            # פתרון לשגיאת ה-Ownership של Git - נותן הרשאה לכל התיקייה
+                            git config --global --add safe.directory '*'
+
                             # הגדרת משתמש Git לביצוע ה-Commit
                             git config --global user.email "jenkins-bot@example.com"
                             git config --global user.name "Jenkins CI Bot"
@@ -120,15 +128,13 @@ pipeline {
                             NEW_BRANCH="update-tags-build-${TAG}"
                             git checkout -b \$NEW_BRANCH
 
-                            # עדכון קובץ ה-values.yaml באמצעות sed (חיפוש והחלפת ה-tag)
+                            # עדכון קובץ ה-values.yaml באמצעות sed
                             sed -i -e '/backend:/,/tag:/ s/tag: .*/tag: "'${TAG}'"/' ./helm/my-daniel-chart/values.yaml
                             sed -i -e '/frontend:/,/tag:/ s/tag: .*/tag: "'${TAG}'"/' ./helm/my-daniel-chart/values.yaml
 
                             # הוספה ודחיפה של הקוד
                             git add ./helm/my-daniel-chart/values.yaml
                             git commit -m "chore: update image tags to ${TAG} [skip ci]"
-                            
-                            # Push עם הטוקן (מונע בעיות הרשאה)
                             git push https://\${GITHUB_TOKEN}@github.com/${GITHUB_REPO}.git \$NEW_BRANCH
 
                             # יצירת Pull Request דרך GitHub API
@@ -146,22 +152,10 @@ pipeline {
 
     post {
         success {
-            echo "✅ Pipeline Completed Successfully!"
-            // כאן תוכל להוסיף התראה ל-Slack / Email
-            // slackSend color: 'good', message: "Build ${TAG} succeeded and PR created! :rocket:"
+            echo "✅ Pipeline Completed Successfully! PR created."
         }
         failure {
             echo "❌ Pipeline Failed!"
-            // slackSend color: 'danger', message: "Build ${TAG} failed! :x:"
-        }
-        always {
-            echo "🧹 Cleaning Docker images..."
-            // עטיפה ב-node פותרת את שגיאת ה- "Missing Context hudson.model.Node"
-            node('jenkins-agent') {
-                container('docker') {
-                    sh "docker rmi ${IMAGE_REPO_BACKEND}:${TAG} ${IMAGE_REPO_FRONTEND}:${TAG} || true"
-                }
-            }
         }
     }
-}
+} 
