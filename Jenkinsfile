@@ -113,39 +113,50 @@ pipeline {
                 container('helm') {
                     withCredentials([string(credentialsId: GITHUB_CREDENTIALS_ID, variable: 'GITHUB_TOKEN')]) {
                         sh '''
-                            #!/bin/sh
                             set -e
 
-                            apk add --no-cache jq git curl || true
+                            apk add --no-cache git curl jq || true
 
                             git config --global --add safe.directory '*'
                             git config --global user.email "jenkins-bot@example.com"
                             git config --global user.name "Jenkins CI Bot"
 
-                            CURRENT_BRANCH=${BRANCH_NAME}
+                            ###################################
+                            # Get branch name safely
+                            ###################################
+                            CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+
+                            if [ "$CURRENT_BRANCH" = "HEAD" ]; then
+                                CURRENT_BRANCH=$(git name-rev --name-only HEAD | sed 's|remotes/origin/||')
+                            fi
+
                             echo "Working on branch: $CURRENT_BRANCH"
 
-                            git fetch --all
-
-                            git checkout -B $CURRENT_BRANCH origin/$CURRENT_BRANCH
-
+                            ###################################
+                            # Update values
+                            ###################################
                             sed -i -e '/backend:/,/tag:/ s/tag: .*/tag: "'${TAG}'"/' ./helm/my-daniel-chart/values.yaml
                             sed -i -e '/frontend:/,/tag:/ s/tag: .*/tag: "'${TAG}'"/' ./helm/my-daniel-chart/values.yaml
 
                             git add ./helm/my-daniel-chart/values.yaml
 
                             if git diff --staged --quiet; then
-                                echo "No changes detected — skipping commit"
+                                echo "No changes detected"
                             else
                                 git commit -m "chore: update image tags to ${TAG} [skip ci]"
-                                git push https://${GITHUB_TOKEN}@github.com/${GITHUB_REPO}.git $CURRENT_BRANCH
+                                git push https://${GITHUB_TOKEN}@github.com/${GITHUB_REPO}.git HEAD:$CURRENT_BRANCH
                             fi
 
+                            ###################################
+                            # Check if PR exists
+                            ###################################
+                            OWNER=$(echo ${GITHUB_REPO} | cut -d'/' -f1)
+
                             PR_EXISTS=$(curl -s -H "Authorization: Bearer ${GITHUB_TOKEN}" \
-                              https://api.github.com/repos/${GITHUB_REPO}/pulls?head=${GITHUB_REPO%%/*}:$CURRENT_BRANCH | jq length)
+                              https://api.github.com/repos/${GITHUB_REPO}/pulls?head=${OWNER}:$CURRENT_BRANCH | jq length)
 
                             if [ "$PR_EXISTS" = "0" ]; then
-                                echo "Creating Pull Request..."
+                                echo "Creating PR..."
 
                                 curl -L -X POST \
                                   -H "Accept: application/vnd.github+json" \
@@ -159,7 +170,7 @@ pipeline {
                                     "base":"main"
                                   }'
                             else
-                                echo "PR already exists — skipping creation"
+                                echo "PR already exists"
                             fi
                         '''
                     }
@@ -167,7 +178,7 @@ pipeline {
             }
         }
 
-    }  // ← סוגר stages
+    } // ← סוגר stages
 
     post {
         success {
