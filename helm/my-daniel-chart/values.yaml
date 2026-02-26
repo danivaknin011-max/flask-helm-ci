@@ -3,7 +3,6 @@ backend:
   image:
     repository: "213daniel/flask-app-backend"
     tag: "54"
-    pullPolicy: IfNotPresent
   service:
     type: ClusterIP
     port: 5000
