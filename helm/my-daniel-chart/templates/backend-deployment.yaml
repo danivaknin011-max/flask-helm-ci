@@ -18,14 +18,10 @@ spec:
           imagePullPolicy: {{ .Values.backend.image.pullPolicy | default "IfNotPresent" }}
           ports:
             - containerPort: {{ .Values.backend.service.targetPort | default 5000 }}
-          # משתנה סביבה לכתובת DB
-          env:
-            - name: DB_HOST
-              value: {{ .Values.config.DB_HOST | default "mysql" | quote }}
-          # טעינת שאר הסודות (סיסמא וכו')
+
           envFrom:
             - secretRef:
                 name: {{ .Values.env.secretName }}
-          # הגדרות משאבים
+
           resources:
             {{- toYaml .Values.resources | nindent 12 }}

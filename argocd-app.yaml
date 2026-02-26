@@ -1,0 +1,18 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: flask-app
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: 'https://github.com/danivaknin011-max/flask-helm-ci.git' # ה-Repo שלך
+    targetRevision: HEAD # מאזין ל-Main
+    path: helm/my-daniel-chart # הנתיב ל-Chart בתוך ה-Repo
+  destination:
+    server: 'https://kubernetes.default.svc' # הקלאסטר המקומי
+    namespace: default # לאיזה Namespace להזריק את האפליקציה
+  syncPolicy:
+    automated:
+      prune: true     # מוחק משאבים ישנים שלא קיימים ב-Git
+      selfHeal: true  # מתקן שינויים ידניים שנעשו בקלאסטר (מונע Drift)
