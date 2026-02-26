@@ -105,79 +105,78 @@ pipeline {
             }
         }
 
-        stage('GitOps: Update Values & Create PR') {
-            when {
-                not { branch 'main' }
-            }
-            steps {
-                container('helm') {
-                    withCredentials([string(credentialsId: GITHUB_CREDENTIALS_ID, variable: 'GITHUB_TOKEN')]) {
-                        sh '''
-                            set -e
+       stage('GitOps: Update Values & Create PR') {
+    when {
+        not { branch 'main' }
+    }
+    steps {
+        container('helm') {
+            withCredentials([string(credentialsId: GITHUB_CREDENTIALS_ID, variable: 'GITHUB_TOKEN')]) {
+                sh """
+                    set -e
 
-                            apk add --no-cache git curl jq || true
+                    apk add --no-cache git curl jq || true
 
-                            git config --global --add safe.directory '*'
-                            git config --global user.email "jenkins-bot@example.com"
-                            git config --global user.name "Jenkins CI Bot"
+                    git config --global --add safe.directory '*'
+                    git config --global user.email "jenkins-bot@example.com"
+                    git config --global user.name "Jenkins CI Bot"
 
-                            ###################################
-                            # Get branch name safely
-                            ###################################
-                            CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+                    ###################################
+                    # Get branch name safely
+                    ###################################
+                    CURRENT_BRANCH=\$(git rev-parse --abbrev-ref HEAD)
 
-                            if [ "$CURRENT_BRANCH" = "HEAD" ]; then
-                                CURRENT_BRANCH=$(git name-rev --name-only HEAD | sed 's|remotes/origin/||')
-                            fi
+                    if [ "\$CURRENT_BRANCH" = "HEAD" ]; then
+                        CURRENT_BRANCH=\$(git name-rev --name-only HEAD | sed 's|remotes/origin/||')
+                    fi
 
-                            echo "Working on branch: $CURRENT_BRANCH"
+                    echo "Working on branch: \$CURRENT_BRANCH"
 
-                            ###################################
-                            # Update values
-                            ###################################
-                            sed -i -e '/backend:/,/tag:/ s/tag: .*/tag: "'${TAG}'"/' ./helm/my-daniel-chart/values.yaml
-                            sed -i -e '/frontend:/,/tag:/ s/tag: .*/tag: "'${TAG}'"/' ./helm/my-daniel-chart/values.yaml
+                    ###################################
+                    # Update values
+                    ###################################
+                    sed -i -e '/backend:/,/tag:/ s/tag: .*/tag: "${TAG}"/' ./helm/my-daniel-chart/values.yaml
+                    sed -i -e '/frontend:/,/tag:/ s/tag: .*/tag: "${TAG}"/' ./helm/my-daniel-chart/values.yaml
 
-                            git add ./helm/my-daniel-chart/values.yaml
+                    git add ./helm/my-daniel-chart/values.yaml
 
-                            if git diff --staged --quiet; then
-                                echo "No changes detected"
-                            else
-                                git commit -m "chore: update image tags to ${TAG} [skip ci]"
-                                git push https://${GITHUB_TOKEN}@github.com/${GITHUB_REPO}.git HEAD:$CURRENT_BRANCH
-                            fi
+                    if git diff --staged --quiet; then
+                        echo "No changes detected"
+                    else
+                        git commit -m "chore: update image tags to ${TAG} [skip ci]"
+                        git push https://${GITHUB_TOKEN}@github.com/${GITHUB_REPO}.git HEAD:\$CURRENT_BRANCH
+                    fi
 
-                            ###################################
-                            # Check if PR exists
-                            ###################################
-                            OWNER=$(echo ${GITHUB_REPO} | cut -d'/' -f1)
+                    ###################################
+                    # Check if PR exists
+                    ###################################
+                    OWNER=\$(echo ${GITHUB_REPO} | cut -d'/' -f1)
 
-                            PR_EXISTS=$(curl -s -H "Authorization: Bearer ${GITHUB_TOKEN}" \
-                              https://api.github.com/repos/${GITHUB_REPO}/pulls?head=${OWNER}:$CURRENT_BRANCH | jq length)
+                    PR_EXISTS=\$(curl -s -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+                      https://api.github.com/repos/${GITHUB_REPO}/pulls?head=\${OWNER}:\$CURRENT_BRANCH | jq length)
 
-                            if [ "$PR_EXISTS" = "0" ]; then
-                                echo "Creating PR..."
+                    if [ "\$PR_EXISTS" = "0" ]; then
+                        echo "Creating PR..."
 
-                                curl -L -X POST \
-                                  -H "Accept: application/vnd.github+json" \
-                                  -H "Authorization: Bearer ${GITHUB_TOKEN}" \
-                                  -H "X-GitHub-Api-Version: 2022-11-28" \
-                                  https://api.github.com/repos/${GITHUB_REPO}/pulls \
-                                  -d '{
-                                    "title":"Deploy: Updates from '"$CURRENT_BRANCH"'",
-                                    "body":"Automated PR update for build ${TAG}",
-                                    "head":"'"$CURRENT_BRANCH"'",
-                                    "base":"main"
-                                  }'
-                            else
-                                echo "PR already exists"
-                            fi
-                        '''
-                    }
-                }
+                        curl -L -X POST \
+                          -H "Accept: application/vnd.github+json" \
+                          -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+                          -H "X-GitHub-Api-Version: 2022-11-28" \
+                          https://api.github.com/repos/${GITHUB_REPO}/pulls \
+                          -d "{
+                            \"title\":\"Deploy: Updates from \$CURRENT_BRANCH\",
+                            \"body\":\"Automated PR update for build ${TAG}\",
+                            \"head\":\"\$CURRENT_BRANCH\",
+                            \"base\":\"main\"
+                          }"
+                    else
+                        echo "PR already exists"
+                    fi
+                """
             }
         }
-
+    }
+}
     } // ← סוגר stages
 
     post {
