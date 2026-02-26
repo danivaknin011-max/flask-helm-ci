@@ -18,3 +18,5 @@ spec:
           type: Utilization
           averageUtilization: {{ .Values.autoscaling.targetCPU | default 50 }}
 {{- end }}
+
+# This template defines a HorizontalPodAutoscaler (HPA) for the application. It scales the number of replicas of the deployment based on CPU utilization. The HPA is only created if autoscaling is enabled in the values file. The minimum and maximum number of replicas, as well as the target CPU utilization, can be configured through the values file.

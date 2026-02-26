@@ -20,7 +20,7 @@ frontend:
   resources: {}
 
 env:
-  secretName: "db-creds"
+  secretName: "mysql-credentials"
 
 autoscaling:
   minReplicas: 1
