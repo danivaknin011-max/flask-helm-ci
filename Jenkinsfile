@@ -107,54 +107,55 @@ pipeline {
 
        stage('GitOps: Update Values & Create PR') {
     when {
-        not { branch 'main' } 
+        not { branch 'main' }
     }
     steps {
         container('helm') {
             withCredentials([string(credentialsId: GITHUB_CREDENTIALS_ID, variable: 'GITHUB_TOKEN')]) {
-                sh """
-                    set -e
-                    # ניסיון התקנה (יעבוד רק אם אתה root)
-                    apk add --no-cache git yq github-cli || echo "Packages might already exist or sudo required"
+                withEnv(["GH_TOKEN=${env.GITHUB_TOKEN}"]) {
+                    sh '''
+                        set -e
+                        apk add --no-cache git yq github-cli || true
 
-                    # הגדרת אימות מול GitHub
-                    git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPO}.git
-                    
-                    git config --global user.email "jenkins-bot@example.com"
-                    git config --global user.name "Jenkins CI Bot"
-                    git config --global --add safe.directory '*'
+                        # ✅ חובה לפני כל git command
+                        git config --global --add safe.directory '*'
 
-                    # זיהוי בראנץ' בצורה חכמה
-                    CURRENT_BRANCH=\$(git rev-parse --abbrev-ref HEAD)
-                    if [ "\$CURRENT_BRANCH" = "HEAD" ]; then
-                        CURRENT_BRANCH="feature-update-${TAG}"
-                        git checkout -B \$CURRENT_BRANCH
-                    fi
+                        # הגדרת משתמש Git
+                        git config --global user.email "jenkins-bot@example.com"
+                        git config --global user.name "Jenkins CI Bot"
 
-                    # עדכון הקובץ
-                    yq -i '.backend.tag = "${TAG}"' ./helm/my-daniel-chart/values.yaml
-                    yq -i '.frontend.tag = "${TAG}"' ./helm/my-daniel-chart/values.yaml
+                        # הגדרת remote עם הסוד דרך משתנה סביבה
+                        git remote set-url origin https://x-access-token:$GITHUB_TOKEN@github.com/${GITHUB_REPO}.git
 
-                    git add ./helm/my-daniel-chart/values.yaml
+                        # בדיקה האם אנו על HEAD detached, אם כן יוצרים branch חדש
+                        CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+                        if [ "$CURRENT_BRANCH" = "HEAD" ]; then
+                            CURRENT_BRANCH="feature-update-${TAG}"
+                            git checkout -B $CURRENT_BRANCH
+                        fi
 
-                    if git diff --staged --quiet; then
-                        echo "No changes detected, skipping..."
-                    else
-                        git commit -m "chore: update image tags to ${TAG} [skip ci]"
-                        
-                        # דחיפה עם האימות החדש
-                        git push --force --set-upstream origin \$CURRENT_BRANCH
+                        # עדכון גרסאות ב-values.yaml
+                        yq -i '.backend.tag = "${TAG}"' ./helm/my-daniel-chart/values.yaml
+                        yq -i '.frontend.tag = "${TAG}"' ./helm/my-daniel-chart/values.yaml
 
-                        # יצירת PR באמצעות GitHub CLI
-                        # משתמשים ב-env variable שה-CLI מכיר אוטומטית
-                        GH_TOKEN=${GITHUB_TOKEN} gh pr create \
-                            --repo "${GITHUB_REPO}" \
-                            --title "Deploy: Updates for ${TAG}" \
-                            --body "Automated PR update from Jenkins Build ${TAG}" \
-                            --base main \
-                            --head \$CURRENT_BRANCH || echo "PR already exists"
-                    fi
-                """
+                        git add ./helm/my-daniel-chart/values.yaml
+
+                        # אם יש שינויים – commit, push ויצירת PR
+                        if git diff --staged --quiet; then
+                            echo "No changes detected, skipping..."
+                        else
+                            git commit -m "chore: update image tags to ${TAG} [skip ci]"
+                            git push --force --set-upstream origin $CURRENT_BRANCH
+
+                            gh pr create \
+                                --repo "${GITHUB_REPO}" \
+                                --title "Deploy: Updates for ${TAG}" \
+                                --body "Automated PR update from Jenkins Build ${TAG}" \
+                                --base main \
+                                --head $CURRENT_BRANCH || echo "PR already exists"
+                        fi
+                    '''
+                }
             }
         }
     }
