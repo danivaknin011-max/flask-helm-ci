@@ -57,6 +57,7 @@ pipeline {
             steps {
                 container('python') {
                     sh '''
+                        
                         pip install -r backend/requirements.txt
                         pip install pytest pytest-flask
                         export PYTHONPATH=$PYTHONPATH:$(pwd)/backend
@@ -110,45 +111,75 @@ pipeline {
         }
 
         stage('GitOps: Update Values & Create PR') {
-            when {
-                not { branch 'main' }
-            }
-            steps {
-                container('helm') {
-                    withCredentials([string(credentialsId: GITHUB_CREDENTIALS_ID, variable: 'GITHUB_TOKEN')]) {
-                        sh """
-                            # פתרון לשגיאת ה-Ownership של Git - נותן הרשאה לכל התיקייה
-                            git config --global --add safe.directory '*'
+    when {
+        not { branch 'main' }
+    }
+    steps {
+        container('helm') {
+            withCredentials([string(credentialsId: GITHUB_CREDENTIALS_ID, variable: 'GITHUB_TOKEN')]) {
+                sh """
+                    set -e
 
-                            # הגדרת משתמש Git לביצוע ה-Commit
-                            git config --global user.email "jenkins-bot@example.com"
-                            git config --global user.name "Jenkins CI Bot"
+                    git config --global --add safe.directory '*'
+                    git config --global user.email "jenkins-bot@example.com"
+                    git config --global user.name "Jenkins CI Bot"
 
-                            # יצירת Branch חדש עבור העדכון
-                            NEW_BRANCH="update-tags-build-${TAG}"
-                            git checkout -b \$NEW_BRANCH
+                    CURRENT_BRANCH=${env.BRANCH_NAME}
+                    echo "Working on branch: \$CURRENT_BRANCH"
 
-                            # עדכון קובץ ה-values.yaml באמצעות sed
-                            sed -i -e '/backend:/,/tag:/ s/tag: .*/tag: "'${TAG}'"/' ./helm/my-daniel-chart/values.yaml
-                            sed -i -e '/frontend:/,/tag:/ s/tag: .*/tag: "'${TAG}'"/' ./helm/my-daniel-chart/values.yaml
+                    #######################################
+                    # Sync branch safely (works with detached HEAD)
+                    #######################################
+                    git fetch origin
 
-                            # הוספה ודחיפה של הקוד
-                            git add ./helm/my-daniel-chart/values.yaml
-                            git commit -m "chore: update image tags to ${TAG} [skip ci]"
-                            git push https://\${GITHUB_TOKEN}@github.com/${GITHUB_REPO}.git \$NEW_BRANCH
+                    git checkout -B \$CURRENT_BRANCH origin/\$CURRENT_BRANCH
 
-                            # יצירת Pull Request דרך GitHub API
-                            curl -L -X POST -H "Accept: application/vnd.github+json" \\
-                            -H "Authorization: Bearer \${GITHUB_TOKEN}" \\
-                            -H "X-GitHub-Api-Version: 2022-11-28" \\
-                            https://api.github.com/repos/${GITHUB_REPO}/pulls \\
-                            -d '{"title":"Deploy: Update image tags to build ${TAG}","body":"Automated PR from Jenkins Pipeline.","head":"'"\$NEW_BRANCH"'","base":"main"}'
-                        """
-                    }
-                }
+                    #######################################
+                    # Update Helm values tags
+                    #######################################
+                    sed -i -e '/backend:/,/tag:/ s/tag: .*/tag: "'${TAG}'"/' ./helm/my-daniel-chart/values.yaml
+                    sed -i -e '/frontend:/,/tag:/ s/tag: .*/tag: "'${TAG}'"/' ./helm/my-daniel-chart/values.yaml
+
+                    #######################################
+                    # Commit only if there is a change
+                    #######################################
+                    git add ./helm/my-daniel-chart/values.yaml
+
+                    if git diff --staged --quiet; then
+                        echo "No changes detected — skipping commit"
+                    else
+                        git commit -m "chore: update image tags to ${TAG} [skip ci]"
+                        git push https://\${GITHUB_TOKEN}@github.com/${GITHUB_REPO}.git \$CURRENT_BRANCH
+                    fi
+
+                    #######################################
+                    # Create PR only if it doesn't exist
+                    #######################################
+                    PR_EXISTS=\$(curl -s -H "Authorization: Bearer \${GITHUB_TOKEN}" \
+                        https://api.github.com/repos/${GITHUB_REPO}/pulls?head=${GITHUB_REPO%%/*}:\$CURRENT_BRANCH | jq length)
+
+                    if [ "\$PR_EXISTS" = "0" ]; then
+                        echo "Creating Pull Request..."
+
+                        curl -L -X POST \
+                        -H "Accept: application/vnd.github+json" \
+                        -H "Authorization: Bearer \${GITHUB_TOKEN}" \
+                        -H "X-GitHub-Api-Version: 2022-11-28" \
+                        https://api.github.com/repos/${GITHUB_REPO}/pulls \
+                        -d '{
+                            "title":"Deploy: Updates from '"\$CURRENT_BRANCH"'",
+                            "body":"Automated PR update for build ${TAG}",
+                            "head":"'"\$CURRENT_BRANCH"'",
+                            "base":"main"
+                        }'
+                    else
+                        echo "PR already exists — skipping creation"
+                    fi
+                """
             }
         }
     }
+}
 
     post {
         success {
