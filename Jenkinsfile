@@ -47,6 +47,7 @@ pipeline {
     }
 
     stages {
+
         stage('Checkout') {
             steps {
                 checkout scm
@@ -69,10 +70,7 @@ pipeline {
         stage('Helm Validation (Lint & Template)') {
             steps {
                 container('helm') {
-                    echo "Running Helm Lint..."
                     sh "helm lint ./helm/my-daniel-chart"
-                    
-                    echo "Running Helm Template (Dry Run)..."
                     sh "helm template test-release ./helm/my-daniel-chart --set backend.image.tag=${TAG} --set frontend.image.tag=${TAG}"
                 }
             }
@@ -87,12 +85,11 @@ pipeline {
                         passwordVariable: 'DOCKER_PASS'
                     )]) {
                         sh """
-                            # --- Backend ---
-                            docker build -t ${IMAGE_REPO_BACKEND}:${TAG} ./backend
                             echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin
+
+                            docker build -t ${IMAGE_REPO_BACKEND}:${TAG} ./backend
                             docker push ${IMAGE_REPO_BACKEND}:${TAG}
 
-                            # --- Frontend ---
                             docker build -t ${IMAGE_REPO_FRONTEND}:${TAG} ./frontend
                             docker push ${IMAGE_REPO_FRONTEND}:${TAG}
                         """
@@ -102,7 +99,6 @@ pipeline {
             post {
                 always {
                     container('docker') {
-                        echo "🧹 Cleaning Docker images locally..."
                         sh "docker rmi ${IMAGE_REPO_BACKEND}:${TAG} ${IMAGE_REPO_FRONTEND}:${TAG} || true"
                     }
                 }
@@ -116,46 +112,80 @@ pipeline {
             steps {
                 container('helm') {
                     withCredentials([string(credentialsId: GITHUB_CREDENTIALS_ID, variable: 'GITHUB_TOKEN')]) {
-                        sh """
-                            # פתרון לשגיאת ה-Ownership של Git - נותן הרשאה לכל התיקייה
-                            git config --global --add safe.directory '*'
+                        sh '''
+                            set -e
 
-                            # הגדרת משתמש Git לביצוע ה-Commit
+                            apk add --no-cache git curl jq || true
+
+                            git config --global --add safe.directory '*'
                             git config --global user.email "jenkins-bot@example.com"
                             git config --global user.name "Jenkins CI Bot"
 
-                            # יצירת Branch חדש עבור העדכון
-                            NEW_BRANCH="update-tags-build-${TAG}"
-                            git checkout -b \$NEW_BRANCH
+                            ###################################
+                            # Get branch name safely
+                            ###################################
+                            CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
 
-                            # עדכון קובץ ה-values.yaml באמצעות sed
+                            if [ "$CURRENT_BRANCH" = "HEAD" ]; then
+                                CURRENT_BRANCH=$(git name-rev --name-only HEAD | sed 's|remotes/origin/||')
+                            fi
+
+                            echo "Working on branch: $CURRENT_BRANCH"
+
+                            ###################################
+                            # Update values
+                            ###################################
                             sed -i -e '/backend:/,/tag:/ s/tag: .*/tag: "'${TAG}'"/' ./helm/my-daniel-chart/values.yaml
                             sed -i -e '/frontend:/,/tag:/ s/tag: .*/tag: "'${TAG}'"/' ./helm/my-daniel-chart/values.yaml
 
-                            # הוספה ודחיפה של הקוד
                             git add ./helm/my-daniel-chart/values.yaml
-                            git commit -m "chore: update image tags to ${TAG} [skip ci]"
-                            git push https://\${GITHUB_TOKEN}@github.com/${GITHUB_REPO}.git \$NEW_BRANCH
 
-                            # יצירת Pull Request דרך GitHub API
-                            curl -L -X POST -H "Accept: application/vnd.github+json" \\
-                            -H "Authorization: Bearer \${GITHUB_TOKEN}" \\
-                            -H "X-GitHub-Api-Version: 2022-11-28" \\
-                            https://api.github.com/repos/${GITHUB_REPO}/pulls \\
-                            -d '{"title":"Deploy: Update image tags to build ${TAG}","body":"Automated PR from Jenkins Pipeline.","head":"'"\$NEW_BRANCH"'","base":"main"}'
-                        """
+                            if git diff --staged --quiet; then
+                                echo "No changes detected"
+                            else
+                                git commit -m "chore: update image tags to ${TAG} [skip ci]"
+                                git push https://${GITHUB_TOKEN}@github.com/${GITHUB_REPO}.git HEAD:$CURRENT_BRANCH
+                            fi
+
+                            ###################################
+                            # Check if PR exists
+                            ###################################
+                            OWNER=$(echo ${GITHUB_REPO} | cut -d'/' -f1)
+
+                            PR_EXISTS=$(curl -s -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+                              https://api.github.com/repos/${GITHUB_REPO}/pulls?head=${OWNER}:$CURRENT_BRANCH | jq length)
+
+                            if [ "$PR_EXISTS" = "0" ]; then
+                                echo "Creating PR..."
+
+                                curl -L -X POST \
+                                  -H "Accept: application/vnd.github+json" \
+                                  -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+                                  -H "X-GitHub-Api-Version: 2022-11-28" \
+                                  https://api.github.com/repos/${GITHUB_REPO}/pulls \
+                                  -d '{
+                                    "title":"Deploy: Updates from '"$CURRENT_BRANCH"'",
+                                    "body":"Automated PR update for build ${TAG}",
+                                    "head":"'"$CURRENT_BRANCH"'",
+                                    "base":"main"
+                                  }'
+                            else
+                                echo "PR already exists"
+                            fi
+                        '''
                     }
                 }
             }
         }
-    }
+
+    } // ← סוגר stages
 
     post {
         success {
-            echo "✅ Pipeline Completed Successfully! PR created."
+            echo "✅ Pipeline Completed Successfully!"
         }
         failure {
             echo "❌ Pipeline Failed!"
         }
     }
-} 
+}
