@@ -34,7 +34,7 @@ pipeline {
     }
 
     options {
-        disableConcurrentBuilds() 
+        disableConcurrentBuilds()
     }
 
     environment {
@@ -47,6 +47,7 @@ pipeline {
     }
 
     stages {
+
         stage('Checkout') {
             steps {
                 checkout scm
@@ -57,7 +58,6 @@ pipeline {
             steps {
                 container('python') {
                     sh '''
-                        
                         pip install -r backend/requirements.txt
                         pip install pytest pytest-flask
                         export PYTHONPATH=$PYTHONPATH:$(pwd)/backend
@@ -70,10 +70,7 @@ pipeline {
         stage('Helm Validation (Lint & Template)') {
             steps {
                 container('helm') {
-                    echo "Running Helm Lint..."
                     sh "helm lint ./helm/my-daniel-chart"
-                    
-                    echo "Running Helm Template (Dry Run)..."
                     sh "helm template test-release ./helm/my-daniel-chart --set backend.image.tag=${TAG} --set frontend.image.tag=${TAG}"
                 }
             }
@@ -88,12 +85,11 @@ pipeline {
                         passwordVariable: 'DOCKER_PASS'
                     )]) {
                         sh """
-                            # --- Backend ---
-                            docker build -t ${IMAGE_REPO_BACKEND}:${TAG} ./backend
                             echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin
+
+                            docker build -t ${IMAGE_REPO_BACKEND}:${TAG} ./backend
                             docker push ${IMAGE_REPO_BACKEND}:${TAG}
 
-                            # --- Frontend ---
                             docker build -t ${IMAGE_REPO_FRONTEND}:${TAG} ./frontend
                             docker push ${IMAGE_REPO_FRONTEND}:${TAG}
                         """
@@ -103,7 +99,6 @@ pipeline {
             post {
                 always {
                     container('docker') {
-                        echo "🧹 Cleaning Docker images locally..."
                         sh "docker rmi ${IMAGE_REPO_BACKEND}:${TAG} ${IMAGE_REPO_FRONTEND}:${TAG} || true"
                     }
                 }
@@ -111,82 +106,75 @@ pipeline {
         }
 
         stage('GitOps: Update Values & Create PR') {
-    when {
-        not { branch 'main' }
-    }
-    steps {
-        container('helm') {
-            withCredentials([string(credentialsId: GITHUB_CREDENTIALS_ID, variable: 'GITHUB_TOKEN')]) {
-                sh """
-                    set -e
+            when {
+                not { branch 'main' }
+            }
+            steps {
+                container('helm') {
+                    withCredentials([string(credentialsId: GITHUB_CREDENTIALS_ID, variable: 'GITHUB_TOKEN')]) {
+                        sh '''
+                            #!/bin/sh
+                            set -e
 
-                    git config --global --add safe.directory '*'
-                    git config --global user.email "jenkins-bot@example.com"
-                    git config --global user.name "Jenkins CI Bot"
+                            apk add --no-cache jq git curl || true
 
-                    CURRENT_BRANCH=${env.BRANCH_NAME}
-                    echo "Working on branch: \$CURRENT_BRANCH"
+                            git config --global --add safe.directory '*'
+                            git config --global user.email "jenkins-bot@example.com"
+                            git config --global user.name "Jenkins CI Bot"
 
-                    #######################################
-                    # Sync branch safely (works with detached HEAD)
-                    #######################################
-                    git fetch origin
+                            CURRENT_BRANCH=${BRANCH_NAME}
+                            echo "Working on branch: $CURRENT_BRANCH"
 
-                    git checkout -B \$CURRENT_BRANCH origin/\$CURRENT_BRANCH
+                            git fetch --all
 
-                    #######################################
-                    # Update Helm values tags
-                    #######################################
-                    sed -i -e '/backend:/,/tag:/ s/tag: .*/tag: "'${TAG}'"/' ./helm/my-daniel-chart/values.yaml
-                    sed -i -e '/frontend:/,/tag:/ s/tag: .*/tag: "'${TAG}'"/' ./helm/my-daniel-chart/values.yaml
+                            git checkout -B $CURRENT_BRANCH origin/$CURRENT_BRANCH
 
-                    #######################################
-                    # Commit only if there is a change
-                    #######################################
-                    git add ./helm/my-daniel-chart/values.yaml
+                            sed -i -e '/backend:/,/tag:/ s/tag: .*/tag: "'${TAG}'"/' ./helm/my-daniel-chart/values.yaml
+                            sed -i -e '/frontend:/,/tag:/ s/tag: .*/tag: "'${TAG}'"/' ./helm/my-daniel-chart/values.yaml
 
-                    if git diff --staged --quiet; then
-                        echo "No changes detected — skipping commit"
-                    else
-                        git commit -m "chore: update image tags to ${TAG} [skip ci]"
-                        git push https://\${GITHUB_TOKEN}@github.com/${GITHUB_REPO}.git \$CURRENT_BRANCH
-                    fi
+                            git add ./helm/my-daniel-chart/values.yaml
 
-                    #######################################
-                    # Create PR only if it doesn't exist
-                    #######################################
-                    PR_EXISTS=\$(curl -s -H "Authorization: Bearer \${GITHUB_TOKEN}" \
-                        https://api.github.com/repos/${GITHUB_REPO}/pulls?head=${GITHUB_REPO%%/*}:\$CURRENT_BRANCH | jq length)
+                            if git diff --staged --quiet; then
+                                echo "No changes detected — skipping commit"
+                            else
+                                git commit -m "chore: update image tags to ${TAG} [skip ci]"
+                                git push https://${GITHUB_TOKEN}@github.com/${GITHUB_REPO}.git $CURRENT_BRANCH
+                            fi
 
-                    if [ "\$PR_EXISTS" = "0" ]; then
-                        echo "Creating Pull Request..."
+                            PR_EXISTS=$(curl -s -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+                              https://api.github.com/repos/${GITHUB_REPO}/pulls?head=${GITHUB_REPO%%/*}:$CURRENT_BRANCH | jq length)
 
-                        curl -L -X POST \
-                        -H "Accept: application/vnd.github+json" \
-                        -H "Authorization: Bearer \${GITHUB_TOKEN}" \
-                        -H "X-GitHub-Api-Version: 2022-11-28" \
-                        https://api.github.com/repos/${GITHUB_REPO}/pulls \
-                        -d '{
-                            "title":"Deploy: Updates from '"\$CURRENT_BRANCH"'",
-                            "body":"Automated PR update for build ${TAG}",
-                            "head":"'"\$CURRENT_BRANCH"'",
-                            "base":"main"
-                        }'
-                    else
-                        echo "PR already exists — skipping creation"
-                    fi
-                """
+                            if [ "$PR_EXISTS" = "0" ]; then
+                                echo "Creating Pull Request..."
+
+                                curl -L -X POST \
+                                  -H "Accept: application/vnd.github+json" \
+                                  -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+                                  -H "X-GitHub-Api-Version: 2022-11-28" \
+                                  https://api.github.com/repos/${GITHUB_REPO}/pulls \
+                                  -d '{
+                                    "title":"Deploy: Updates from '"$CURRENT_BRANCH"'",
+                                    "body":"Automated PR update for build ${TAG}",
+                                    "head":"'"$CURRENT_BRANCH"'",
+                                    "base":"main"
+                                  }'
+                            else
+                                echo "PR already exists — skipping creation"
+                            fi
+                        '''
+                    }
+                }
             }
         }
-    }
-}
+
+    }  // ← סוגר stages
 
     post {
         success {
-            echo "✅ Pipeline Completed Successfully! PR created."
+            echo "✅ Pipeline Completed Successfully!"
         }
         failure {
             echo "❌ Pipeline Failed!"
         }
     }
-} 
+}
