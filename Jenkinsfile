@@ -112,65 +112,40 @@ pipeline {
     steps {
         container('helm') {
             withCredentials([string(credentialsId: GITHUB_CREDENTIALS_ID, variable: 'GITHUB_TOKEN')]) {
-                sh '''
+                sh """
                     set -e
+                    # התקנת כלים (מומלץ להכניס ל-Image מראש)
+                    apk add --no-cache git curl jq github-cli yq || true
 
-                    # התקנת כלים במידה וחסרים
-                    apk add --no-cache git curl jq || true
-
-                    # הגדרות גיט
-                    git config --global --add safe.directory '*'
+                    export GITHUB_TOKEN=${GITHUB_TOKEN}
+                    
+                    # הגדרות זהות לגיט
                     git config --global user.email "jenkins-bot@example.com"
                     git config --global user.name "Jenkins CI Bot"
+                    git config --global --add safe.directory '*'
 
-                    # זיהוי הבראנץ' הנוכחי
-                    CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
-                    if [ "$CURRENT_BRANCH" = "HEAD" ]; then
-                        CURRENT_BRANCH=$(git name-rev --name-only HEAD | sed 's|remotes/origin/||')
-                    fi
-                    echo "Working on branch: $CURRENT_BRANCH"
-
-                    # עדכון ה-Tags ב-values.yaml
-                    sed -i -e "/backend:/,/tag:/ s/tag: .*/tag: \\"${TAG}\\"/" ./helm/my-daniel-chart/values.yaml
-                    sed -i -e "/frontend:/,/tag:/ s/tag: .*/tag: \\"${TAG}\\"/" ./helm/my-daniel-chart/values.yaml
+                    # עדכון ה-Tags בצורה בטוחה עם yq
+                    yq -i '.backend.tag = "${TAG}"' ./helm/my-daniel-chart/values.yaml
+                    yq -i '.frontend.tag = "${TAG}"' ./helm/my-daniel-chart/values.yaml
 
                     git add ./helm/my-daniel-chart/values.yaml
 
-                    # ביצוע Commit ו-Push רק אם יש שינויים
+                    # ביצוע Commit ו-Push
                     if git diff --staged --quiet; then
-                        echo "No changes detected"
+                        echo "No changes detected, skipping..."
                     else
                         git commit -m "chore: update image tags to ${TAG} [skip ci]"
-                        git push "https://${GITHUB_TOKEN}@github.com/${GITHUB_REPO}.git" HEAD:"$CURRENT_BRANCH"
-                    fi
-
-                    # בדיקה אם ה-PR כבר קיים
-                    OWNER=$(echo "${GITHUB_REPO}" | cut -d'/' -f1)
-                    PR_EXISTS=$(curl -s -H "Authorization: Bearer ${GITHUB_TOKEN}" \
-                      "https://api.github.com/repos/${GITHUB_REPO}/pulls?head=${OWNER}:${CURRENT_BRANCH}" | jq '. | length')
-
-                    if [ "$PR_EXISTS" = "0" ]; then
-                        echo "Creating PR..."
+                        git push "https://${GITHUB_TOKEN}@github.com/${GITHUB_REPO}.git" HEAD
                         
-                        # בניית ה-JSON בצורה בטוחה בעזרת jq
-                        PAYLOAD=$(jq -n \
-                          --arg title "Deploy: Updates from $CURRENT_BRANCH" \
-                          --arg body "Automated PR update for build ${TAG}" \
-                          --arg head "$CURRENT_BRANCH" \
-                          --arg base "main" \
-                          '{title: $title, body: $body, head: $head, base: $base}')
-
-                        # שליחת הבקשה ל-GitHub
-                        curl -L -X POST \
-                          -H "Accept: application/vnd.github+json" \
-                          -H "Authorization: Bearer ${GITHUB_TOKEN}" \
-                          -H "X-GitHub-Api-Version: 2022-11-28" \
-                          "https://api.github.com/repos/${GITHUB_REPO}/pulls" \
-                          -d "$PAYLOAD"
-                    else
-                        echo "PR already exists"
+                        # יצירת PR באמצעות ה-GitHub CLI (בודק אוטומטית אם כבר קיים)
+                        gh pr create \
+                            --repo "${GITHUB_REPO}" \
+                            --title "Deploy: Updates for ${TAG}" \
+                            --body "Automated PR update for build ${TAG}" \
+                            --base main \
+                            --head \$(git rev-parse --abbrev-ref HEAD) || echo "PR already exists or failed to create"
                     fi
-                '''
+                """
             }
         }
     }
