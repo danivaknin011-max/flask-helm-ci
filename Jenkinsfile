@@ -34,7 +34,7 @@ pipeline {
     }
 
     options {
-        disableConcurrentBuilds()
+        disableConcurrentBuilds() 
     }
 
     environment {
