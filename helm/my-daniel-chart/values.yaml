@@ -2,7 +2,7 @@ backend:
   replicaCount: 1
   image:
     repository: "213daniel/flask-app-backend"
-    tag: "55"
+    tag: "56"
   service:
     type: ClusterIP
     port: 5000
@@ -11,7 +11,7 @@ backend:
 frontend:
   image:
     repository: "213daniel/flask-app-frontend"
-    tag: "55"
+    tag: "56"
   service:
     type: NodePort
     port: 80
