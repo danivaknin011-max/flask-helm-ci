@@ -3,151 +3,280 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bank Digital | Pro</title>
-    <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;500;800&display=swap" rel="stylesheet">
+    <title>NextGen Bank | DevOps Edition</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;700&family=Assistant:wght@300;600;800&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
-    
+
     <style>
+        :root {
+            --primary: #00d2ff;
+            --secondary: #3a7bd5;
+            --dark-bg: #0f172a;
+            --card-bg: rgba(30, 41, 59, 0.7);
+            --neon-glow: 0 0 15px rgba(0, 210, 255, 0.3);
+        }
+
         body {
-            background: radial-gradient(circle at top right, #1e3c72, #2a5298);
-            font-family: 'Heebo', sans-serif;
-            height: 100vh;
+            background-color: var(--dark-bg);
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(0, 210, 255, 0.15) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(58, 123, 213, 0.15) 0px, transparent 50%);
+            font-family: 'Assistant', sans-serif;
+            color: #f8fafc;
+            min-height: 100vh;
             display: flex;
             align-items: center;
-            color: #fff;
+            overflow-x: hidden;
         }
 
-        .glass-card {
-            background: rgba(255, 255, 255, 0.95);
-            border-radius: 30px;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            box-shadow: 0 25px 50px rgba(0,0,0,0.2);
-            color: #2d3436;
+        .main-container {
+            max-width: 480px;
+            width: 100%;
+        }
+
+        /* כרטיס אשראי וירטואלי */
+        .v-card {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            border-radius: 20px;
+            padding: 25px;
+            position: relative;
             overflow: hidden;
-            transition: all 0.4s ease;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+            margin-bottom: -60px;
+            z-index: 2;
+            transition: transform 0.3s ease;
         }
 
-        .card-header-custom {
-            background: #f8f9fa;
-            padding: 30px;
-            border-bottom: 1px solid #eee;
-            text-align: center;
+        .v-card:hover {
+            transform: translateY(-5px) rotateX(5deg);
         }
 
-        .balance-box {
-            background: #f1f3f5;
-            border-radius: 20px;
-            padding: 20px;
-            margin: 20px 0;
-            border: 1px inset #fff;
+        .v-card::after {
+            content: "";
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255,255,255,0.2) 0%, transparent 80%);
+            pointer-events: none;
         }
 
-        .balance-amount {
-            font-size: 3.5rem;
-            font-weight: 800;
-            color: #1e3c72;
-            letter-spacing: -1px;
+        /* הפאנל המרכזי */
+        .glass-panel {
+            background: var(--card-bg);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 32px;
+            padding: 80px 30px 30px 30px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
         }
 
-        .btn-action {
-            border-radius: 15px;
-            padding: 15px;
-            font-weight: 600;
-            transition: transform 0.2s, box-shadow 0.2s;
-        }
-
-        .btn-action:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
-        }
-
-        .prometheus-badge {
-            font-size: 0.7rem;
-            background: #e67e22;
-            color: white;
-            padding: 4px 12px;
-            border-radius: 20px;
+        .balance-label {
+            color: #94a3b8;
+            font-size: 0.9rem;
             text-transform: uppercase;
             letter-spacing: 1px;
-            margin-top: 10px;
-            display: inline-block;
         }
 
-        #amount {
-            border-radius: 15px;
-            padding: 12px;
-            font-size: 1.2rem;
+        .balance-value {
+            font-size: 3rem;
+            font-weight: 800;
+            background: linear-gradient(to right, #fff, #94a3b8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        /* כפתורים בעיצוב מודרני */
+        .action-btn {
+            border: none;
+            border-radius: 16px;
+            padding: 16px;
+            font-weight: 700;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-deposit {
+            background: rgba(16, 185, 129, 0.1);
+            color: #10b981;
+            border: 1px solid rgba(16, 185, 129, 0.2);
+        }
+
+        .btn-deposit:hover {
+            background: #10b981;
+            color: white;
+            box-shadow: 0 0 20px rgba(16, 185, 129, 0.4);
+        }
+
+        .btn-withdraw {
+            background: rgba(244, 63, 94, 0.1);
+            color: #f43f5e;
+            border: 1px solid rgba(244, 63, 94, 0.2);
+        }
+
+        .btn-withdraw:hover {
+            background: #f43f5e;
+            color: white;
+            box-shadow: 0 0 20px rgba(244, 63, 94, 0.4);
+        }
+
+        .input-custom {
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            color: white;
+            padding: 15px;
             text-align: center;
-            border: 2px solid #e9ecef;
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        .input-custom:focus {
+            background: rgba(15, 23, 42, 0.8);
+            border-color: var(--primary);
+            box-shadow: var(--neon-glow);
+            color: white;
+        }
+
+        /* מחוון סטטוס DevOps */
+        .status-bar {
+            background: rgba(0,0,0,0.2);
+            border-radius: 100px;
+            padding: 5px 15px;
+            font-size: 0.75rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: #94a3b8;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background: #10b981;
+            border-radius: 50%;
+            box-shadow: 0 0 10px #10b981;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.4; }
+            100% { opacity: 1; }
+        }
+
+        .nav-icons {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            color: #94a3b8;
         }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <div class="row justify-content-center">
-        <div class="col-md-5">
-            <div class="glass-card shadow">
-                <div class="card-header-custom">
-                    <h2 class="fw-bold mb-0">🏦 בנק העתיד</h2>
-                    <span class="prometheus-badge"><i class="bi bi-activity"></i> Prometheus Live</span>
-                </div>
-                
-                <div class="card-body p-4">
-                    <div class="text-center">
-                        <p class="text-muted text-uppercase mb-1 fw-bold">יתרה נוכחית בחשבון</p>
-                        <div class="balance-box">
-                            <div id="balance" class="balance-amount">₪0</div>
-                        </div>
-                    </div>
+<div class="container main-container">
+    <div class="nav-icons">
+        <i class="bi bi-list fs-4"></i>
+        <div class="status-bar">
+            <div class="status-dot"></div>
+            <span>System: Stable (ArgoCD)</span>
+        </div>
+        <i class="bi bi-person-circle fs-4"></i>
+    </div>
 
-                    <div class="mt-4">
-                        <label class="form-label text-muted ms-2">סכום לביצוע פעולה</label>
-                        <div class="input-group mb-4">
-                            <span class="input-group-text bg-white border-end-0" style="border-radius: 15px 0 0 15px;">₪</span>
-                            <input type="number" id="amount" class="form-control border-start-0" placeholder="0.00">
-                        </div>
+    <div class="v-card">
+        <div class="d-flex justify-content-between align-items-start mb-4">
+            <i class="bi bi-cpu fs-3 text-white-50"></i>
+            <span class="fw-bold italic">PREMIUM</span>
+        </div>
+        <div class="mb-4">
+            <small class="d-block opacity-75 mb-1">מספר חשבון</small>
+            <h5 style="letter-spacing: 2px;">**** **** **** 2024</h5>
+        </div>
+        <div class="d-flex justify-content-between">
+            <div>
+                <small class="d-block opacity-75">בעל החשבון</small>
+                <span>DevOps Expert</span>
+            </div>
+            <div class="text-end">
+                <small class="d-block opacity-75">תוקף</small>
+                <span>12/28</span>
+            </div>
+        </div>
+    </div>
 
-                        <div class="row g-2">
-                            <div class="col-6">
-                                <button onclick="performAction('deposit')" class="btn btn-success btn-action w-100">
-                                    <i class="bi bi-plus-circle me-1"></i> הפקדה
-                                </button>
-                            </div>
-                            <div class="col-6">
-                                <button onclick="performAction('withdraw')" class="btn btn-outline-danger btn-action w-100">
-                                    <i class="bi bi-dash-circle me-1"></i> משיכה
-                                </button>
-                            </div>
-                        </div>
-                    </div>
+    <div class="glass-panel">
+        <div class="text-center mb-5">
+            <span class="balance-label">יתרה זמינה</span>
+            <div id="balance" class="balance-value">₪0</div>
+        </div>
 
-                    <div id="message" class="mt-4 alert d-none text-center" style="border-radius: 15px;"></div>
-                </div>
-                
-                <div class="card-footer bg-light border-0 text-center py-3">
-                    <small class="text-muted">מערכת מנוטרת בזמן אמת</small>
-                </div>
+        <div class="mb-4">
+            <input type="number" id="amount" class="form-control input-custom" placeholder="0.00">
+        </div>
+
+        <div class="row g-3">
+            <div class="col-6">
+                <button onclick="performAction('deposit')" class="action-btn btn-deposit w-100">
+                    <i class="bi bi-arrow-down-left-circle fs-4"></i>
+                    הפקדה
+                </button>
+            </div>
+            <div class="col-6">
+                <button onclick="performAction('withdraw')" class="action-btn btn-withdraw w-100">
+                    <i class="bi bi-arrow-up-right-circle fs-4"></i>
+                    משיכה
+                </button>
+            </div>
+        </div>
+
+        <div id="message" class="mt-4 alert d-none text-center border-0" style="border-radius: 12px; background: rgba(255,255,255,0.05); color: white;"></div>
+        
+        <div class="mt-5 pt-3 border-top border-secondary text-center">
+            <div class="d-flex justify-content-around text-muted">
+                <div class="small"><i class="bi bi-shield-check text-primary"></i> SSL מוצפן</div>
+                <div class="small"><i class="bi bi-bar-chart text-primary"></i> Prometheus Live</div>
             </div>
         </div>
     </div>
 </div>
 
 <script>
+    // פונקציה לעדכון יתרה עם אנימציית מספרים
     async function updateBalance() {
         try {
             const response = await fetch('/api/balance');
             const data = await response.json();
-            // אנימציית מספרים פשוטה
-            document.getElementById('balance').innerText = '₪' + data.balance.toLocaleString();
+            const balanceElement = document.getElementById('balance');
+            
+            // אנימציה פשוטה
+            let start = 0;
+            let end = data.balance;
+            let duration = 500;
+            let startTime = null;
+
+            function animate(currentTime) {
+                if (!startTime) startTime = currentTime;
+                let progress = Math.min((currentTime - startTime) / duration, 1);
+                let currentVal = Math.floor(progress * (end - start) + start);
+                balanceElement.innerText = '₪' + currentVal.toLocaleString();
+                if (progress < 1) requestAnimationFrame(animate);
+            }
+            requestAnimationFrame(animate);
+            
         } catch (error) { console.error('Error:', error); }
     }
 
     async function performAction(action) {
         const amountInput = document.getElementById('amount');
         const amount = parseFloat(amountInput.value);
-        
+
         if (!amount || amount <= 0) {
             showMessage('נא להזין סכום תקין', 'warning');
             return;
@@ -162,24 +291,29 @@
             const data = await response.json();
 
             if (response.ok) {
-                showMessage(action === 'deposit' ? 'הכסף הופקד!' : 'המשיכה בוצעה!', 'success');
+                showMessage(action === 'deposit' ? 'הכסף הופקד בהצלחה! 🚀' : 'המשיכה בוצעה בהצלחה! 💸', 'success');
                 updateBalance();
                 amountInput.value = '';
             } else {
-                showMessage(data.error, 'danger');
+                showMessage(data.error || 'פעולה נכשלה', 'danger');
             }
         } catch (error) {
-            showMessage('שגיאת תקשורת', 'danger');
+            showMessage('שגיאת תקשורת עם השרת', 'danger');
         }
     }
 
     function showMessage(text, type) {
         const msgDiv = document.getElementById('message');
         msgDiv.innerText = text;
-        msgDiv.className = `mt-4 alert alert-${type} d-block`;
-        setTimeout(() => msgDiv.className = 'd-none', 3000);
+        msgDiv.className = `mt-4 alert d-block animate__animated animate__fadeIn`;
+        if(type === 'danger') msgDiv.style.color = '#f43f5e';
+        if(type === 'success') msgDiv.style.color = '#10b981';
+        if(type === 'warning') msgDiv.style.color = '#f59e0b';
+        
+        setTimeout(() => msgDiv.className = 'd-none', 4000);
     }
 
+    // טעינה ראשונית
     updateBalance();
 </script>
 
