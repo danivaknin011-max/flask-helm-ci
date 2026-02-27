@@ -116,41 +116,40 @@ pipeline {
                                 set -e
                                 apk add --no-cache git yq github-cli || true
 
-                                # ✅ חובה לפני כל git command
+                                # הגדרות Git
                                 git config --global --add safe.directory '*'
-
-                                # הגדרת משתמש Git
                                 git config --global user.email "jenkins-bot@example.com"
                                 git config --global user.name "Jenkins CI Bot"
 
-                                # הגדרת remote
+                                # עדכון Remote URL
                                 git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPO}.git
 
-                                # בדיקה האם אנו על HEAD detached
-                                CURRENT_BRANCH=\$(git rev-parse --abbrev-ref HEAD)
-                                if [ "\$CURRENT_BRANCH" = "HEAD" ]; then
-                                    CURRENT_BRANCH="feature-update-${TAG}"
-                                    git checkout -B \$CURRENT_BRANCH
-                                fi
+                                # מניעת קונפליקטים: התחלה מ-main נקי
+                                git fetch origin main
+                                git checkout main
+                                git pull origin main
 
-                                # עדכון גרסאות ב-values.yaml
-                                yq -i ".backend.tag = \\"${TAG}\\"" ./helm/my-daniel-chart/values.yaml
-                                yq -i ".frontend.tag = \\"${TAG}\\"" ./helm/my-daniel-chart/values.yaml
+                                # יצירת ענף ייעודי ל-Build הנוכחי
+                                CURRENT_BRANCH="feature-update-tag-${TAG}"
+                                git checkout -b \$CURRENT_BRANCH
+
+                                # עדכון ה-Tag בתוך נתיב ה-image המדויק
+                                yq -i ".backend.image.tag = \\"${TAG}\\"" ./helm/my-daniel-chart/values.yaml
+                                yq -i ".frontend.image.tag = \\"${TAG}\\"" ./helm/my-daniel-chart/values.yaml
 
                                 git add ./helm/my-daniel-chart/values.yaml
 
-                                # אם יש שינויים – commit, push ויצירת PR
                                 if git diff --staged --quiet; then
                                     echo "No changes detected, skipping..."
                                 else
                                     git commit -m "chore: update image tags to ${TAG} [skip ci]"
-                                    git push --force --set-upstream origin \$CURRENT_BRANCH
+                                    git push -u origin \$CURRENT_BRANCH
 
-                                    gh pr create \
-                                        --repo "${GITHUB_REPO}" \
-                                        --title "Deploy: Updates for ${TAG}" \
-                                        --body "Automated PR update from Jenkins Build ${TAG}" \
-                                        --base main \
+                                    gh pr create \\
+                                        --repo "${GITHUB_REPO}" \\
+                                        --title "Deploy: Update tags to ${TAG}" \\
+                                        --body "Automated PR update from Jenkins Build ${TAG}" \\
+                                        --base main \\
                                         --head \$CURRENT_BRANCH || echo "PR already exists"
                                 fi
                             """
@@ -159,7 +158,7 @@ pipeline {
                 }
             }
         }
-    } // stages
+    } // stages סגירת
 
     post {
         success {
