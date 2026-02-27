@@ -124,16 +124,16 @@ pipeline {
                                 # עדכון Remote URL
                                 git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPO}.git
 
-                                # מניעת קונפליקטים: התחלה מ-main נקי
-                                git fetch origin main
-                                git checkout main
-                                git pull origin main
+                                # ✅ זיהוי הענף שבו אתה עובד (הענף שהפעיל את ה-Build)
+                                # ג'נקינס שומר את שם הענף במשתני הסביבה שלו
+                                MY_BRANCH=\${BRANCH_NAME:-\${GIT_BRANCH#origin/}}
 
-                                # יצירת ענף ייעודי ל-Build הנוכחי
-                                CURRENT_BRANCH="feature-update-tag-${TAG}"
-                                git checkout -b \$CURRENT_BRANCH
+                                # ✅ מעבר לענף *שלך* (במקום ל-main) ומשיכת השינויים שלך
+                                git fetch origin \$MY_BRANCH
+                                git checkout \$MY_BRANCH
+                                git pull origin \$MY_BRANCH
 
-                                # עדכון ה-Tag בתוך נתיב ה-image המדויק
+                                # עדכון ה-Tag בתוך ה-values.yaml
                                 yq -i ".backend.image.tag = \\"${TAG}\\"" ./helm/my-daniel-chart/values.yaml
                                 yq -i ".frontend.image.tag = \\"${TAG}\\"" ./helm/my-daniel-chart/values.yaml
 
@@ -142,15 +142,17 @@ pipeline {
                                 if git diff --staged --quiet; then
                                     echo "No changes detected, skipping..."
                                 else
+                                    # ✅ דחיפת השינוי של ה-values יחד עם הקוד שלך לאותו ענף
                                     git commit -m "chore: update image tags to ${TAG} [skip ci]"
-                                    git push -u origin \$CURRENT_BRANCH
+                                    git push origin \$MY_BRANCH
 
+                                    # ✅ יצירת ה-PR מהענף שלך ל-main (יכיל כעת את הקוד + ה-values)
                                     gh pr create \\
                                         --repo "${GITHUB_REPO}" \\
-                                        --title "Deploy: Update tags to ${TAG}" \\
-                                        --body "Automated PR update from Jenkins Build ${TAG}" \\
+                                        --title "Deploy: Updates from \$MY_BRANCH (Tag ${TAG})" \\
+                                        --body "Automated PR. Includes your code changes and updated image tags to ${TAG}." \\
                                         --base main \\
-                                        --head \$CURRENT_BRANCH || echo "PR already exists"
+                                        --head \$MY_BRANCH || echo "PR already exists"
                                 fi
                             """
                         }
