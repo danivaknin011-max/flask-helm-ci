@@ -8,7 +8,7 @@ backend:
     type: ClusterIP
     port: 5000
   resources: {}
-
+  tag: "75"
 frontend:
   image:
     repository: "213daniel/flask-app-frontend"
@@ -18,10 +18,9 @@ frontend:
     port: 80
     nodePort: 30080
   resources: {}
-
+  tag: "75"
 env:
   secretName: "mysql-credentials"
-
 autoscaling:
   minReplicas: 1
   maxReplicas: 3
