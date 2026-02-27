@@ -2,28 +2,25 @@ backend:
   replicaCount: 1
   image:
     repository: "213daniel/flask-app-backend"
-    tag: "76"
+    tag: "77"
     pullPolicy: IfNotPresent
   service:
     type: ClusterIP
     port: 5000
   resources: {}
   # השורה של tag: "75" נמחקה מכאן
-
 frontend:
   image:
     repository: "213daniel/flask-app-frontend"
-    tag: "76"
+    tag: "77"
   service:
     type: NodePort
     port: 80
     nodePort: 30080
   resources: {}
   # השורה של tag: "75" נמחקה מכאן
-
 env:
   secretName: "mysql-credentials"
-
 autoscaling:
   minReplicas: 1
   maxReplicas: 3
