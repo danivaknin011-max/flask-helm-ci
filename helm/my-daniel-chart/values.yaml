@@ -2,23 +2,21 @@ backend:
   replicaCount: 1
   image:
     repository: "213daniel/flask-app-backend"
-    tag: "77"
+    tag: "78" # ה-Pipeline יעדכן את זה
     pullPolicy: IfNotPresent
   service:
     type: ClusterIP
     port: 5000
   resources: {}
-  # השורה של tag: "75" נמחקה מכאן
 frontend:
   image:
     repository: "213daniel/flask-app-frontend"
-    tag: "77"
+    tag: "78" # ה-Pipeline יעדכן את זה
   service:
     type: NodePort
     port: 80
     nodePort: 30080
   resources: {}
-  # השורה של tag: "75" נמחקה מכאן
 env:
   secretName: "mysql-credentials"
 autoscaling:
