@@ -2,26 +2,23 @@ backend:
   replicaCount: 1
   image:
     repository: "213daniel/flask-app-backend"
-    tag: "latest"  # ה-Pipeline יעדכן את זה
+    tag: "78" # ה-Pipeline יעדכן את זה
     pullPolicy: IfNotPresent
   service:
     type: ClusterIP
     port: 5000
   resources: {}
-
 frontend:
   image:
     repository: "213daniel/flask-app-frontend"
-    tag: "latest"  # ה-Pipeline יעדכן את זה
+    tag: "78" # ה-Pipeline יעדכן את זה
   service:
     type: NodePort
     port: 80
     nodePort: 30080
   resources: {}
-
 env:
   secretName: "mysql-credentials"
-
 autoscaling:
   minReplicas: 1
   maxReplicas: 3
