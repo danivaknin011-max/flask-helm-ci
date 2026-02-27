@@ -47,7 +47,6 @@ pipeline {
     }
 
     stages {
-
         stage('Checkout') {
             steps {
                 checkout scm
@@ -105,63 +104,62 @@ pipeline {
             }
         }
 
-       stage('GitOps: Update Values & Create PR') {
-    when {
-        not { branch 'main' }
-    }
-    steps {
-        container('helm') {
-            withCredentials([string(credentialsId: GITHUB_CREDENTIALS_ID, variable: 'GITHUB_TOKEN')]) {
-                withEnv(["GH_TOKEN=${env.GITHUB_TOKEN}"]) {
-                    sh '''
-                        set -e
-                        apk add --no-cache git yq github-cli || true
+        stage('GitOps: Update Values & Create PR') {
+            when {
+                not { branch 'main' }
+            }
+            steps {
+                container('helm') {
+                    withCredentials([string(credentialsId: GITHUB_CREDENTIALS_ID, variable: 'GITHUB_TOKEN')]) {
+                        withEnv(["GH_TOKEN=${env.GITHUB_TOKEN}"]) {
+                            sh """
+                                set -e
+                                apk add --no-cache git yq github-cli || true
 
-                        # ✅ חובה לפני כל git command
-                        git config --global --add safe.directory '*'
+                                # ✅ חובה לפני כל git command
+                                git config --global --add safe.directory '*'
 
-                        # הגדרת משתמש Git
-                        git config --global user.email "jenkins-bot@example.com"
-                        git config --global user.name "Jenkins CI Bot"
+                                # הגדרת משתמש Git
+                                git config --global user.email "jenkins-bot@example.com"
+                                git config --global user.name "Jenkins CI Bot"
 
-                        # הגדרת remote עם הסוד דרך משתנה סביבה
-                        git remote set-url origin https://x-access-token:$GITHUB_TOKEN@github.com/${GITHUB_REPO}.git
+                                # הגדרת remote
+                                git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPO}.git
 
-                        # בדיקה האם אנו על HEAD detached, אם כן יוצרים branch חדש
-                        CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
-                        if [ "$CURRENT_BRANCH" = "HEAD" ]; then
-                            CURRENT_BRANCH="feature-update-${TAG}"
-                            git checkout -B $CURRENT_BRANCH
-                        fi
+                                # בדיקה האם אנו על HEAD detached
+                                CURRENT_BRANCH=\$(git rev-parse --abbrev-ref HEAD)
+                                if [ "\$CURRENT_BRANCH" = "HEAD" ]; then
+                                    CURRENT_BRANCH="feature-update-${TAG}"
+                                    git checkout -B \$CURRENT_BRANCH
+                                fi
 
-                        # עדכון גרסאות ב-values.yaml
-                        yq -i '.backend.tag = "${TAG}"' ./helm/my-daniel-chart/values.yaml
-                        yq -i '.frontend.tag = "${TAG}"' ./helm/my-daniel-chart/values.yaml
+                                # עדכון גרסאות ב-values.yaml
+                                yq -i ".backend.tag = \\"${TAG}\\"" ./helm/my-daniel-chart/values.yaml
+                                yq -i ".frontend.tag = \\"${TAG}\\"" ./helm/my-daniel-chart/values.yaml
 
-                        git add ./helm/my-daniel-chart/values.yaml
+                                git add ./helm/my-daniel-chart/values.yaml
 
-                        # אם יש שינויים – commit, push ויצירת PR
-                        if git diff --staged --quiet; then
-                            echo "No changes detected, skipping..."
-                        else
-                            git commit -m "chore: update image tags to ${TAG} [skip ci]"
-                            git push --force --set-upstream origin $CURRENT_BRANCH
+                                # אם יש שינויים – commit, push ויצירת PR
+                                if git diff --staged --quiet; then
+                                    echo "No changes detected, skipping..."
+                                else
+                                    git commit -m "chore: update image tags to ${TAG} [skip ci]"
+                                    git push --force --set-upstream origin \$CURRENT_BRANCH
 
-                            gh pr create \
-                                --repo "${GITHUB_REPO}" \
-                                --title "Deploy: Updates for ${TAG}" \
-                                --body "Automated PR update from Jenkins Build ${TAG}" \
-                                --base main \
-                                --head $CURRENT_BRANCH || echo "PR already exists"
-                        fi
-                    '''
+                                    gh pr create \
+                                        --repo "${GITHUB_REPO}" \
+                                        --title "Deploy: Updates for ${TAG}" \
+                                        --body "Automated PR update from Jenkins Build ${TAG}" \
+                                        --base main \
+                                        --head \$CURRENT_BRANCH || echo "PR already exists"
+                                fi
+                            """
+                        }
+                    }
                 }
             }
         }
-    }
-}
-
-    } // ← סוגר stages
+    } // stages
 
     post {
         success {
