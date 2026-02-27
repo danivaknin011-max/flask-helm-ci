@@ -1,4 +1,3 @@
-
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
@@ -9,8 +8,9 @@ metadata:
 spec:
   selector:
     matchLabels:
-      app: backend # ימצא את ה-Service בזכות ה-labels שהוספנו למעלה
+      app: backend # ימצא את ה-Service בזכות ה-labels
   endpoints:
-  - port: http-metrics # ימצא את הפורט הנכון ב-Service
+  # ✅ התיקון כאן: שינוי ל-http כדי שייגש ל-targetPort 5000
+  - port: http 
     path: /metrics
     interval: 15s

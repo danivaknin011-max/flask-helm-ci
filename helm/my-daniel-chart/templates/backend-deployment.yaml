@@ -11,6 +11,11 @@ spec:
     metadata:
       labels:
         app: backend
+      # ✅ הוסף את שלוש השורות האלו בדיוק כאן:
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "5000"
+        prometheus.io/path: "/metrics"
     spec:
       containers:
         - name: backend
@@ -18,10 +23,8 @@ spec:
           imagePullPolicy: {{ .Values.backend.image.pullPolicy | default "IfNotPresent" }}
           ports:
             - containerPort: {{ .Values.backend.service.targetPort | default 5000 }}
-
           envFrom:
             - secretRef:
                 name: {{ .Values.env.secretName }}
-
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
